@@ -9,57 +9,134 @@ dotenv.config();
 
 const app = express();
 
-// Import Models
-const User = require('./models/User');
-const Student = require('./models/Student');
-const Grade = require('./models/Grade');
-const Assignment = require('./models/Assignment');
-const Attendance = require('./models/Attendance');
-
-// Middleware
+// ==================== SIMPLE MIDDLEWARE (NO NEXT ISSUES) ====================
 app.use(cors());
 app.use(express.json());
 
-// MongoDB Connection
-mongoose.connect(process.env.MONGODB_URI || 'mongodb://127.0.0.1:27017/essa_school')
+// Simple request logger
+app.use((req, res, next) => {
+  console.log(`${req.method} ${req.url}`);
+  next();
+});
+
+// ==================== MONGODB CONNECTION ====================
+const MONGODB_URI = process.env.MONGODB_URI || 'mongodb://127.0.0.1:27017/essa_school';
+
+mongoose.connect(MONGODB_URI)
   .then(() => console.log('✅ MongoDB Connected'))
   .catch(err => console.error('MongoDB connection error:', err));
 
-// ==================== AUTH MIDDLEWARE ====================
-const authMiddleware = (req, res, next) => {
-  const token = req.headers.authorization?.split(' ')[1];
-  if (!token) {
-    return res.status(401).json({ message: 'No token provided' });
-  }
-  try {
-    const decoded = jwt.verify(token, process.env.JWT_SECRET || 'secretkey');
-    req.userId = decoded.id;
-    req.userRole = decoded.role;
-    next();
-  } catch (error) {
-    return res.status(401).json({ message: 'Invalid token' });
-  }
-};
+// ==================== SCHEMAS ====================
+const userSchema = new mongoose.Schema({
+  fullName: { type: String, required: true },
+  email: { type: String, required: true, unique: true },
+  password: { type: String, required: true },
+  role: { type: String, enum: ['student', 'teacher', 'parent', 'admin'], required: true },
+  phone: String,
+  address: String,
+  isActive: { type: Boolean, default: true },
+  lastLogin: Date,
+  createdAt: { type: Date, default: Date.now }
+});
 
-const roleCheck = (...roles) => {
-  return (req, res, next) => {
-    if (!roles.includes(req.userRole)) {
-      return res.status(403).json({ message: 'Access denied' });
-    }
-    next();
-  };
+const studentSchema = new mongoose.Schema({
+  user: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+  studentId: String,
+  grade: String,
+  className: String,
+  combination: String,
+  parent: { type: mongoose.Schema.Types.ObjectId, ref: 'User' }
+});
+
+const gradeSchema = new mongoose.Schema({
+  student: { type: mongoose.Schema.Types.ObjectId, ref: 'Student' },
+  studentName: String,
+  subject: String,
+  score: Number,
+  grade: String,
+  term: String,
+  year: Number,
+  teacher: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+  teacherName: String,
+  createdAt: { type: Date, default: Date.now }
+});
+
+const attendanceSchema = new mongoose.Schema({
+  student: { type: mongoose.Schema.Types.ObjectId, ref: 'Student' },
+  studentName: String,
+  date: Date,
+  status: String,
+  subject: String,
+  teacher: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+  teacherName: String
+});
+
+const assignmentSchema = new mongoose.Schema({
+  title: String,
+  description: String,
+  subject: String,
+  teacher: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+  teacherName: String,
+  className: String,
+  dueDate: Date,
+  totalPoints: Number,
+  submissions: [{
+    student: { type: mongoose.Schema.Types.ObjectId, ref: 'Student' },
+    studentName: String,
+    submittedAt: Date,
+    fileUrl: String,
+    score: Number,
+    status: { type: String, default: 'pending' }
+  }]
+});
+
+// Calculate grade before saving
+gradeSchema.pre('save', function(next) {
+  if (this.score >= 80) this.grade = 'A';
+  else if (this.score >= 75) this.grade = 'B+';
+  else if (this.score >= 70) this.grade = 'B';
+  else if (this.score >= 65) this.grade = 'C+';
+  else if (this.score >= 60) this.grade = 'C';
+  else if (this.score >= 50) this.grade = 'D';
+  else if (this.score >= 40) this.grade = 'E';
+  else this.grade = 'F';
+  next();
+});
+
+const User = mongoose.model('User', userSchema);
+const Student = mongoose.model('Student', studentSchema);
+const Grade = mongoose.model('Grade', gradeSchema);
+const Attendance = mongoose.model('Attendance', attendanceSchema);
+const Assignment = mongoose.model('Assignment', assignmentSchema);
+
+// ==================== AUTH HELPER ====================
+const verifyToken = (token) => {
+  try {
+    return jwt.verify(token, process.env.JWT_SECRET || 'secretkey');
+  } catch (error) {
+    return null;
+  }
 };
 
 // ==================== AUTH ROUTES ====================
 app.post('/api/auth/login', async (req, res) => {
   try {
     const { email, password, role } = req.body;
-    const user = await User.findOne({ email });
-    if (!user) return res.status(401).json({ message: 'Invalid email or password' });
-    if (user.role !== role) return res.status(401).json({ message: 'Invalid role selected' });
+    console.log('Login attempt:', { email, role });
     
-    const isMatch = await user.comparePassword(password);
-    if (!isMatch) return res.status(401).json({ message: 'Invalid email or password' });
+    const user = await User.findOne({ email });
+    if (!user) {
+      return res.status(401).json({ message: 'Invalid email or password' });
+    }
+    
+    if (user.role !== role) {
+      return res.status(401).json({ message: 'Invalid role selected' });
+    }
+    
+    const isMatch = await bcrypt.compare(password, user.password);
+    if (!isMatch) {
+      return res.status(401).json({ message: 'Invalid email or password' });
+    }
     
     user.lastLogin = new Date();
     await user.save();
@@ -70,7 +147,6 @@ app.post('/api/auth/login', async (req, res) => {
       { expiresIn: '7d' }
     );
     
-    // Get role-specific data
     let roleData = null;
     if (role === 'student') {
       roleData = await Student.findOne({ user: user._id });
@@ -86,36 +162,132 @@ app.post('/api/auth/login', async (req, res) => {
       token
     });
   } catch (error) {
+    console.error('Login error:', error);
+    res.status(500).json({ message: error.message });
+  }
+});
+
+// ==================== STUDENT ROUTES ====================
+app.get('/api/student/dashboard', async (req, res) => {
+  try {
+    const token = req.headers.authorization?.split(' ')[1];
+    if (!token) {
+      return res.status(401).json({ message: 'No token provided' });
+    }
+    
+    const decoded = verifyToken(token);
+    if (!decoded) {
+      return res.status(401).json({ message: 'Invalid token' });
+    }
+    
+    const student = await Student.findOne({ user: decoded.id }).populate('user', 'fullName email');
+    if (!student) {
+      return res.status(404).json({ message: 'Student not found' });
+    }
+    
+    const grades = await Grade.find({ student: student._id }).sort({ createdAt: -1 });
+    const averageScore = grades.length > 0 
+      ? (grades.reduce((sum, g) => sum + g.score, 0) / grades.length).toFixed(1)
+      : 0;
+    
+    const attendance = await Attendance.find({ student: student._id }).sort({ date: -1 }).limit(10);
+    const totalDays = await Attendance.countDocuments({ student: student._id });
+    const presentDays = await Attendance.countDocuments({ student: student._id, status: 'Present' });
+    const attendanceRate = totalDays > 0 ? ((presentDays / totalDays) * 100).toFixed(1) : 0;
+    
+    const assignments = await Assignment.find({ className: student.className }).sort({ dueDate: 1 });
+    
+    res.json({
+      student: {
+        name: student.user.fullName,
+        email: student.user.email,
+        studentId: student.studentId,
+        grade: student.grade,
+        className: student.className
+      },
+      grades: grades.slice(0, 5),
+      averageScore,
+      attendance,
+      attendanceRate,
+      totalAssignments: assignments.length,
+      completedAssignments: assignments.filter(a => 
+        a.submissions.some(s => s.student?.toString() === student._id.toString())
+      ).length
+    });
+  } catch (error) {
+    console.error('Dashboard error:', error);
+    res.status(500).json({ message: error.message });
+  }
+});
+
+app.get('/api/student/grades', async (req, res) => {
+  try {
+    const token = req.headers.authorization?.split(' ')[1];
+    if (!token) return res.status(401).json({ message: 'No token' });
+    
+    const decoded = verifyToken(token);
+    if (!decoded) return res.status(401).json({ message: 'Invalid token' });
+    
+    const student = await Student.findOne({ user: decoded.id });
+    const grades = await Grade.find({ student: student._id }).sort({ term: -1, year: -1 });
+    res.json(grades);
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+});
+
+app.get('/api/student/attendance', async (req, res) => {
+  try {
+    const token = req.headers.authorization?.split(' ')[1];
+    if (!token) return res.status(401).json({ message: 'No token' });
+    
+    const decoded = verifyToken(token);
+    if (!decoded) return res.status(401).json({ message: 'Invalid token' });
+    
+    const student = await Student.findOne({ user: decoded.id });
+    const attendance = await Attendance.find({ student: student._id }).sort({ date: -1 });
+    res.json(attendance);
+  } catch (error) {
     res.status(500).json({ message: error.message });
   }
 });
 
 // ==================== TEACHER ROUTES ====================
-
-// Get teacher's students
-app.get('/api/teacher/students', authMiddleware, roleCheck('teacher'), async (req, res) => {
+app.get('/api/teacher/students', async (req, res) => {
   try {
-    const teacher = await User.findById(req.userId);
+    const token = req.headers.authorization?.split(' ')[1];
+    if (!token) return res.status(401).json({ message: 'No token' });
+    
+    const decoded = verifyToken(token);
+    if (!decoded || decoded.role !== 'teacher') {
+      return res.status(403).json({ message: 'Access denied' });
+    }
+    
     const students = await Student.find().populate('user', 'fullName email');
     res.json(students.map(s => ({
       id: s._id,
-      studentId: s.studentId,
       name: s.user.fullName,
       email: s.user.email,
       grade: s.grade,
-      className: s.className,
-      combination: s.combination
+      className: s.className
     })));
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
 });
 
-// Add grade
-app.post('/api/teacher/grades', authMiddleware, roleCheck('teacher'), async (req, res) => {
+app.post('/api/teacher/grades', async (req, res) => {
   try {
-    const { studentId, studentName, subject, score, term, year, remarks } = req.body;
-    const teacher = await User.findById(req.userId);
+    const token = req.headers.authorization?.split(' ')[1];
+    if (!token) return res.status(401).json({ message: 'No token' });
+    
+    const decoded = verifyToken(token);
+    if (!decoded || decoded.role !== 'teacher') {
+      return res.status(403).json({ message: 'Access denied' });
+    }
+    
+    const { studentId, studentName, subject, score, term, year } = req.body;
+    const teacher = await User.findById(decoded.id);
     
     const grade = new Grade({
       student: studentId,
@@ -124,9 +296,8 @@ app.post('/api/teacher/grades', authMiddleware, roleCheck('teacher'), async (req
       score,
       term,
       year,
-      teacher: req.userId,
-      teacherName: teacher.fullName,
-      remarks
+      teacher: decoded.id,
+      teacherName: teacher.fullName
     });
     
     await grade.save();
@@ -136,87 +307,32 @@ app.post('/api/teacher/grades', authMiddleware, roleCheck('teacher'), async (req
   }
 });
 
-// Get all grades (teacher view)
-app.get('/api/teacher/grades', authMiddleware, roleCheck('teacher'), async (req, res) => {
+app.post('/api/teacher/attendance', async (req, res) => {
   try {
-    const grades = await Grade.find().sort({ createdAt: -1 });
-    res.json(grades);
-  } catch (error) {
-    res.status(500).json({ message: error.message });
-  }
-});
-
-// Create assignment
-app.post('/api/teacher/assignments', authMiddleware, roleCheck('teacher'), async (req, res) => {
-  try {
-    const { title, description, subject, className, dueDate, totalPoints } = req.body;
-    const teacher = await User.findById(req.userId);
+    const token = req.headers.authorization?.split(' ')[1];
+    if (!token) return res.status(401).json({ message: 'No token' });
     
-    const assignment = new Assignment({
-      title,
-      description,
-      subject,
-      teacher: req.userId,
-      teacherName: teacher.fullName,
-      className,
-      dueDate,
-      totalPoints
-    });
+    const decoded = verifyToken(token);
+    if (!decoded || decoded.role !== 'teacher') {
+      return res.status(403).json({ message: 'Access denied' });
+    }
     
-    await assignment.save();
-    res.json({ success: true, message: 'Assignment created successfully', assignment });
-  } catch (error) {
-    res.status(500).json({ message: error.message });
-  }
-});
-
-// Get teacher's assignments
-app.get('/api/teacher/assignments', authMiddleware, roleCheck('teacher'), async (req, res) => {
-  try {
-    const assignments = await Assignment.find({ teacher: req.userId }).sort({ createdAt: -1 });
-    res.json(assignments);
-  } catch (error) {
-    res.status(500).json({ message: error.message });
-  }
-});
-
-// Grade assignment submission
-app.put('/api/teacher/assignments/:assignmentId/submissions/:submissionId', authMiddleware, roleCheck('teacher'), async (req, res) => {
-  try {
-    const { score, feedback } = req.body;
-    const assignment = await Assignment.findById(req.params.assignmentId);
-    
-    const submission = assignment.submissions.id(req.params.submissionId);
-    submission.score = score;
-    submission.feedback = feedback;
-    submission.status = 'graded';
-    
-    await assignment.save();
-    res.json({ success: true, message: 'Submission graded successfully' });
-  } catch (error) {
-    res.status(500).json({ message: error.message });
-  }
-});
-
-// Mark attendance
-app.post('/api/teacher/attendance', authMiddleware, roleCheck('teacher'), async (req, res) => {
-  try {
-    const { records } = req.body; // Array of { studentId, studentName, status, subject, date }
-    const teacher = await User.findById(req.userId);
+    const { records } = req.body;
+    const teacher = await User.findById(decoded.id);
     
     for (const record of records) {
       await Attendance.findOneAndUpdate(
         { student: record.studentId, date: new Date(record.date), subject: record.subject },
-        { 
+        {
           student: record.studentId,
           studentName: record.studentName,
           date: new Date(record.date),
           status: record.status,
           subject: record.subject,
-          teacher: req.userId,
+          teacher: decoded.id,
           teacherName: teacher.fullName
         },
-        { upsert: true, new: true }
+        { upsert: true }
       );
     }
     
@@ -226,269 +342,89 @@ app.post('/api/teacher/attendance', authMiddleware, roleCheck('teacher'), async 
   }
 });
 
-// Get attendance records
-app.get('/api/teacher/attendance', authMiddleware, roleCheck('teacher'), async (req, res) => {
-  try {
-    const { date, subject } = req.query;
-    const query = {};
-    if (date) query.date = new Date(date);
-    if (subject) query.subject = subject;
-    
-    const attendance = await Attendance.find(query).sort({ date: -1 });
-    res.json(attendance);
-  } catch (error) {
-    res.status(500).json({ message: error.message });
-  }
-});
-
-// ==================== STUDENT ROUTES ====================
-
-// Get student dashboard data
-app.get('/api/student/dashboard', authMiddleware, roleCheck('student'), async (req, res) => {
-  try {
-    const student = await Student.findOne({ user: req.userId }).populate('user', 'fullName email');
-    if (!student) {
-      return res.status(404).json({ message: 'Student profile not found' });
-    }
-    
-    // Get grades
-    const grades = await Grade.find({ student: student._id }).sort({ createdAt: -1 });
-    const averageScore = grades.length > 0 
-      ? (grades.reduce((sum, g) => sum + g.score, 0) / grades.length).toFixed(1)
-      : 0;
-    
-    // Get attendance
-    const attendance = await Attendance.find({ student: student._id }).sort({ date: -1 }).limit(10);
-    const totalDays = await Attendance.countDocuments({ student: student._id });
-    const presentDays = await Attendance.countDocuments({ student: student._id, status: 'Present' });
-    const attendanceRate = totalDays > 0 ? ((presentDays / totalDays) * 100).toFixed(1) : 0;
-    
-    // Get assignments
-    const assignments = await Assignment.find({ className: student.className }).sort({ dueDate: 1 });
-    
-    const assignmentsWithStatus = assignments.map(assignment => {
-      const submission = assignment.submissions.find(s => s.student?.toString() === student._id.toString());
-      return {
-        id: assignment._id,
-        title: assignment.title,
-        subject: assignment.subject,
-        dueDate: assignment.dueDate,
-        status: submission ? submission.status : 'pending',
-        score: submission?.score,
-        feedback: submission?.feedback
-      };
-    });
-    
-    res.json({
-      student: {
-        id: student._id,
-        name: student.user.fullName,
-        email: student.user.email,
-        studentId: student.studentId,
-        grade: student.grade,
-        className: student.className,
-        combination: student.combination
-      },
-      grades: grades.slice(0, 5),
-      averageScore,
-      attendance: attendance.slice(0, 10),
-      attendanceRate,
-      assignments: assignmentsWithStatus,
-      totalAssignments: assignments.length,
-      completedAssignments: assignmentsWithStatus.filter(a => a.status === 'submitted' || a.status === 'graded').length
-    });
-  } catch (error) {
-    res.status(500).json({ message: error.message });
-  }
-});
-
-// Get all grades for student
-app.get('/api/student/grades', authMiddleware, roleCheck('student'), async (req, res) => {
-  try {
-    const student = await Student.findOne({ user: req.userId });
-    const grades = await Grade.find({ student: student._id }).sort({ term: -1, year: -1 });
-    res.json(grades);
-  } catch (error) {
-    res.status(500).json({ message: error.message });
-  }
-});
-
-// Get all attendance for student
-app.get('/api/student/attendance', authMiddleware, roleCheck('student'), async (req, res) => {
-  try {
-    const student = await Student.findOne({ user: req.userId });
-    const attendance = await Attendance.find({ student: student._id }).sort({ date: -1 });
-    res.json(attendance);
-  } catch (error) {
-    res.status(500).json({ message: error.message });
-  }
-});
-
-// Submit assignment
-app.post('/api/student/assignments/:assignmentId/submit', authMiddleware, roleCheck('student'), async (req, res) => {
-  try {
-    const { fileUrl, comment } = req.body;
-    const student = await Student.findOne({ user: req.userId });
-    const assignment = await Assignment.findById(req.params.assignmentId);
-    
-    const existingSubmission = assignment.submissions.find(s => s.student?.toString() === student._id.toString());
-    
-    if (existingSubmission) {
-      existingSubmission.submittedAt = new Date();
-      existingSubmission.fileUrl = fileUrl;
-      existingSubmission.status = 'submitted';
-    } else {
-      assignment.submissions.push({
-        student: student._id,
-        studentName: student.user.fullName,
-        fileUrl,
-        status: 'submitted'
-      });
-    }
-    
-    await assignment.save();
-    res.json({ success: true, message: 'Assignment submitted successfully' });
-  } catch (error) {
-    res.status(500).json({ message: error.message });
-  }
-});
-
-// ==================== PARENT ROUTES ====================
-
-// Get parent's children data
-app.get('/api/parent/children', authMiddleware, roleCheck('parent'), async (req, res) => {
-  try {
-    const students = await Student.find({ parent: req.userId }).populate('user', 'fullName email');
-    res.json(students.map(s => ({
-      id: s._id,
-      name: s.user.fullName,
-      grade: s.grade,
-      className: s.className,
-      combination: s.combination,
-      studentId: s.studentId
-    })));
-  } catch (error) {
-    res.status(500).json({ message: error.message });
-  }
-});
-
-// Get child's grades
-app.get('/api/parent/children/:childId/grades', authMiddleware, roleCheck('parent'), async (req, res) => {
-  try {
-    const grades = await Grade.find({ student: req.params.childId }).sort({ createdAt: -1 });
-    res.json(grades);
-  } catch (error) {
-    res.status(500).json({ message: error.message });
-  }
-});
-
-// Get child's attendance
-app.get('/api/parent/children/:childId/attendance', authMiddleware, roleCheck('parent'), async (req, res) => {
-  try {
-    const attendance = await Attendance.find({ student: req.params.childId }).sort({ date: -1 });
-    res.json(attendance);
-  } catch (error) {
-    res.status(500).json({ message: error.message });
-  }
-});
-
-// ==================== ADMIN ROUTES ====================
-
-app.get('/api/admin/dashboard', authMiddleware, roleCheck('admin'), async (req, res) => {
-  try {
-    const totalStudents = await Student.countDocuments();
-    const totalTeachers = await User.countDocuments({ role: 'teacher' });
-    const totalParents = await User.countDocuments({ role: 'parent' });
-    const totalGrades = await Grade.countDocuments();
-    
-    res.json({
-      totalStudents,
-      totalTeachers,
-      totalParents,
-      totalGrades,
-      recentActivities: await Grade.find().sort({ createdAt: -1 }).limit(5)
-    });
-  } catch (error) {
-    res.status(500).json({ message: error.message });
-  }
+// ==================== TEST ROUTE ====================
+app.get('/api/test', (req, res) => {
+  res.json({ message: 'API is working!', timestamp: new Date().toISOString() });
 });
 
 // ==================== SEED DATABASE ====================
-
 const seedDatabase = async () => {
-  const existingUsers = await User.countDocuments();
-  if (existingUsers > 0) {
+  const count = await User.countDocuments();
+  if (count > 0) {
     console.log('Database already has users, skipping seed...');
     return;
   }
   
   // Create users
-  const users = [
-    { fullName: 'Jean Paul Ndayisaba', email: 'student@essa.rw', password: 'student123', role: 'student', phone: '+250788123457' },
-    { fullName: 'Mukansanga Marie', email: 'teacher@essa.rw', password: 'teacher123', role: 'teacher', phone: '+250788123458' },
-    { fullName: 'Habimana Jean', email: 'parent@essa.rw', password: 'parent123', role: 'parent', phone: '+250788123459' },
-    { fullName: 'Dr. Uwimana Jean Paul', email: 'admin@essa.rw', password: 'admin123', role: 'admin', phone: '+250788123456' }
-  ];
+  const studentUser = new User({
+    fullName: 'Jean Paul Ndayisaba',
+    email: 'student@essa.rw',
+    password: await bcrypt.hash('student123', 10),
+    role: 'student',
+    phone: '+250788123457'
+  });
+  await studentUser.save();
   
-  const createdUsers = {};
-  for (const user of users) {
-    const newUser = new User(user);
-    await newUser.save();
-    createdUsers[user.role] = newUser;
-    console.log(`✅ Created user: ${user.email} (${user.role})`);
-  }
+  const teacherUser = new User({
+    fullName: 'Mukansanga Marie',
+    email: 'teacher@essa.rw',
+    password: await bcrypt.hash('teacher123', 10),
+    role: 'teacher',
+    phone: '+250788123458'
+  });
+  await teacherUser.save();
+  
+  const parentUser = new User({
+    fullName: 'Habimana Jean',
+    email: 'parent@essa.rw',
+    password: await bcrypt.hash('parent123', 10),
+    role: 'parent',
+    phone: '+250788123459'
+  });
+  await parentUser.save();
+  
+  const adminUser = new User({
+    fullName: 'Dr. Uwimana Jean Paul',
+    email: 'admin@essa.rw',
+    password: await bcrypt.hash('admin123', 10),
+    role: 'admin',
+    phone: '+250788123456'
+  });
+  await adminUser.save();
   
   // Create student profile
   const student = new Student({
-    user: createdUsers.student._id,
+    user: studentUser._id,
     studentId: 'STU2024001',
     grade: 'S6',
     className: 'Software Development',
     combination: 'Software Development'
   });
   await student.save();
-  console.log('✅ Created student profile');
   
-  // Add some sample grades
+  // Add sample grades
   const grades = [
-    { student: student._id, studentName: 'Jean Paul Ndayisaba', subject: 'Mathematics', score: 85, term: 'Term 1', year: 2026, teacher: createdUsers.teacher._id, teacherName: 'Mukansanga Marie' },
-    { student: student._id, studentName: 'Jean Paul Ndayisaba', subject: 'English', score: 78, term: 'Term 1', year: 2026, teacher: createdUsers.teacher._id, teacherName: 'Mukansanga Marie' },
-    { student: student._id, studentName: 'Jean Paul Ndayisaba', subject: 'Physics', score: 92, term: 'Term 1', year: 2026, teacher: createdUsers.teacher._id, teacherName: 'Mukansanga Marie' },
-    { student: student._id, studentName: 'Jean Paul Ndayisaba', subject: 'Computer Science', score: 95, term: 'Term 1', year: 2026, teacher: createdUsers.teacher._id, teacherName: 'Mukansanga Marie' }
+    { student: student._id, studentName: 'Jean Paul Ndayisaba', subject: 'Mathematics', score: 85, term: 'Term 1', year: 2026, teacher: teacherUser._id, teacherName: 'Mukansanga Marie' },
+    { student: student._id, studentName: 'Jean Paul Ndayisaba', subject: 'English', score: 78, term: 'Term 1', year: 2026, teacher: teacherUser._id, teacherName: 'Mukansanga Marie' },
+    { student: student._id, studentName: 'Jean Paul Ndayisaba', subject: 'Physics', score: 92, term: 'Term 1', year: 2026, teacher: teacherUser._id, teacherName: 'Mukansanga Marie' }
   ];
   
-  for (const grade of grades) {
-    await Grade.create(grade);
+  for (const g of grades) {
+    await Grade.create(g);
   }
-  console.log('✅ Added sample grades');
   
   // Add sample attendance
   const attendanceRecords = [
-    { student: student._id, studentName: 'Jean Paul Ndayisaba', date: new Date('2026-04-22'), status: 'Present', subject: 'Mathematics', teacher: createdUsers.teacher._id, teacherName: 'Mukansanga Marie' },
-    { student: student._id, studentName: 'Jean Paul Ndayisaba', date: new Date('2026-04-23'), status: 'Present', subject: 'English', teacher: createdUsers.teacher._id, teacherName: 'Mukansanga Marie' },
-    { student: student._id, studentName: 'Jean Paul Ndayisaba', date: new Date('2026-04-24'), status: 'Present', subject: 'Physics', teacher: createdUsers.teacher._id, teacherName: 'Mukansanga Marie' },
-    { student: student._id, studentName: 'Jean Paul Ndayisaba', date: new Date('2026-04-25'), status: 'Late', subject: 'Chemistry', teacher: createdUsers.teacher._id, teacherName: 'Mukansanga Marie' }
+    { student: student._id, studentName: 'Jean Paul Ndayisaba', date: new Date('2026-04-22'), status: 'Present', subject: 'Mathematics', teacher: teacherUser._id, teacherName: 'Mukansanga Marie' },
+    { student: student._id, studentName: 'Jean Paul Ndayisaba', date: new Date('2026-04-23'), status: 'Present', subject: 'English', teacher: teacherUser._id, teacherName: 'Mukansanga Marie' },
+    { student: student._id, studentName: 'Jean Paul Ndayisaba', date: new Date('2026-04-24'), status: 'Late', subject: 'Physics', teacher: teacherUser._id, teacherName: 'Mukansanga Marie' }
   ];
   
-  for (const record of attendanceRecords) {
-    await Attendance.create(record);
+  for (const a of attendanceRecords) {
+    await Attendance.create(a);
   }
-  console.log('✅ Added sample attendance');
   
-  // Add sample assignment
-  const assignment = new Assignment({
-    title: 'Programming Project',
-    description: 'Create a web application using React',
-    subject: 'Computer Science',
-    teacher: createdUsers.teacher._id,
-    teacherName: 'Mukansanga Marie',
-    className: 'Software Development',
-    dueDate: new Date('2026-05-15'),
-    totalPoints: 100
-  });
-  await assignment.save();
-  console.log('✅ Added sample assignment');
-  
+  console.log('\n✅ Database seeded successfully!');
   console.log('\n🔐 DEMO CREDENTIALS:');
   console.log('-------------------');
   console.log('Student: student@essa.rw / student123');
@@ -498,10 +434,10 @@ const seedDatabase = async () => {
   console.log('-------------------\n');
 };
 
-// Start server
+// ==================== START SERVER ====================
 const PORT = process.env.PORT || 5000;
 app.listen(PORT, async () => {
-  console.log(`\n🚀 Server running on port ${PORT}`);
-  console.log(`📍 API: http://localhost:${PORT}\n`);
+  console.log(`\n🚀 Server running on http://localhost:${PORT}`);
+  console.log(`📍 Test API: http://localhost:${PORT}/api/test\n`);
   await seedDatabase();
 });
