@@ -8,8 +8,23 @@ const StudentDashboard = () => {
   const [dashboardData, setDashboardData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState('overview');
-  const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const navigate = useNavigate();
+
+  // Check if mobile screen
+  const [isMobile, setIsMobile] = useState(window.innerWidth <= 768);
+
+  useEffect(() => {
+    const handleResize = () => {
+      setIsMobile(window.innerWidth <= 768);
+      if (window.innerWidth > 768) {
+        setMobileMenuOpen(false);
+      }
+    };
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
 
   useEffect(() => {
     const token = localStorage.getItem('portalToken');
@@ -69,6 +84,17 @@ const StudentDashboard = () => {
     return '#e74c3c';
   };
 
+  const getGradeLetter = (score) => {
+    if (score >= 80) return 'A';
+    if (score >= 75) return 'B+';
+    if (score >= 70) return 'B';
+    if (score >= 65) return 'C+';
+    if (score >= 60) return 'C';
+    if (score >= 50) return 'D';
+    if (score >= 40) return 'E';
+    return 'F';
+  };
+
   const getAttendanceBadge = (status) => {
     const styles = {
       Present: { background: '#d4edda', color: '#155724', icon: 'fa-check-circle' },
@@ -83,15 +109,27 @@ const StudentDashboard = () => {
     );
   };
 
+  const calculateAverageScore = () => {
+    if (!dashboardData?.grades || dashboardData.grades.length === 0) return 0;
+    const sum = dashboardData.grades.reduce((acc, g) => acc + g.score, 0);
+    return (sum / dashboardData.grades.length).toFixed(1);
+  };
+
+  const calculateAttendanceRate = () => {
+    if (!dashboardData?.attendance || dashboardData.attendance.length === 0) return 0;
+    const present = dashboardData.attendance.filter(a => a.status === 'Present').length;
+    return ((present / dashboardData.attendance.length) * 100).toFixed(1);
+  };
+
   const menuItems = [
-    { id: 'overview', label: 'Overview', icon: 'fas fa-chart-line', color: '#3498db' },
-    { id: 'grades', label: 'Grades', icon: 'fas fa-chart-simple', color: '#27ae60' },
-    { id: 'attendance', label: 'Attendance', icon: 'fas fa-clock', color: '#f39c12' },
-    { id: 'assignments', label: 'Assignments', icon: 'fas fa-tasks', color: '#9b59b6' },
-    { id: 'timetable', label: 'Timetable', icon: 'fas fa-calendar-alt', color: '#e74c3c' },
-    { id: 'exams', label: 'Exams', icon: 'fas fa-file-alt', color: '#1abc9c' },
-    { id: 'fees', label: 'Fees', icon: 'fas fa-money-bill-wave', color: '#e67e22' },
-    { id: 'profile', label: 'Profile', icon: 'fas fa-user-circle', color: '#34495e' }
+    { id: 'overview', label: 'Overview', icon: 'fas fa-chart-line', color: '#3498db', description: 'Dashboard summary' },
+    { id: 'grades', label: 'Grades', icon: 'fas fa-chart-simple', color: '#27ae60', description: 'View all grades' },
+    { id: 'attendance', label: 'Attendance', icon: 'fas fa-clock', color: '#f39c12', description: 'Attendance records' },
+    { id: 'assignments', label: 'Assignments', icon: 'fas fa-tasks', color: '#9b59b6', description: 'Homework & submissions' },
+    { id: 'timetable', label: 'Timetable', icon: 'fas fa-calendar-alt', color: '#e74c3c', description: 'Class schedule' },
+    { id: 'exams', label: 'Exams', icon: 'fas fa-file-alt', color: '#1abc9c', description: 'Exam schedule' },
+    { id: 'fees', label: 'Fees', icon: 'fas fa-money-bill-wave', color: '#e67e22', description: 'Fee payment status' },
+    { id: 'profile', label: 'Profile', icon: 'fas fa-user-circle', color: '#34495e', description: 'Personal information' }
   ];
 
   if (loading) {
@@ -105,12 +143,15 @@ const StudentDashboard = () => {
     );
   }
 
+  const sidebarWidth = sidebarCollapsed ? '80px' : '260px';
+  const sidebarWidthMobile = mobileMenuOpen ? '260px' : '0px';
+
   return (
     <div style={{ display: 'flex', minHeight: '100vh', background: '#f0f4f8' }}>
       {/* Mobile Overlay */}
-      {sidebarOpen && (
+      {mobileMenuOpen && (
         <div 
-          onClick={() => setSidebarOpen(false)}
+          onClick={() => setMobileMenuOpen(false)}
           style={{
             position: 'fixed',
             top: 0,
@@ -119,14 +160,13 @@ const StudentDashboard = () => {
             bottom: 0,
             background: 'rgba(0,0,0,0.5)',
             zIndex: 998,
-            display: 'block'
           }}
         />
       )}
 
-      {/* Sidebar */}
+      {/* Sidebar - Desktop */}
       <aside style={{
-        width: sidebarOpen ? '280px' : '0px',
+        width: isMobile ? sidebarWidthMobile : sidebarWidth,
         background: '#1a3a5c',
         color: 'white',
         position: 'fixed',
@@ -140,74 +180,142 @@ const StudentDashboard = () => {
         flexDirection: 'column',
         boxShadow: '2px 0 10px rgba(0,0,0,0.1)'
       }}>
-        {/* Sidebar Header */}
-        <div style={{ padding: '1.5rem', borderBottom: '1px solid rgba(255,255,255,0.1)', textAlign: 'center' }}>
-          <div style={{ width: '60px', height: '60px', background: '#ffc107', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 1rem' }}>
-            <i className="fas fa-graduation-cap" style={{ fontSize: '2rem', color: '#1a3a5c' }}></i>
-          </div>
-          <h3 style={{ fontSize: '1rem', marginBottom: '0.25rem' }}>{userName}</h3>
-          <p style={{ fontSize: '0.7rem', opacity: 0.8 }}>Student</p>
+        {/* Sidebar Header with Collapse Button */}
+        <div style={{ 
+          padding: sidebarCollapsed ? '1rem 0' : '1.5rem', 
+          borderBottom: '1px solid rgba(255,255,255,0.1)',
+          textAlign: 'center',
+          position: 'relative'
+        }}>
+          {!sidebarCollapsed && (
+            <>
+              <div style={{ 
+                width: '60px', 
+                height: '60px', 
+                background: '#ffc107', 
+                borderRadius: '50%', 
+                display: 'flex', 
+                alignItems: 'center', 
+                justifyContent: 'center', 
+                margin: '0 auto 1rem' 
+              }}>
+                <i className="fas fa-graduation-cap" style={{ fontSize: '2rem', color: '#1a3a5c' }}></i>
+              </div>
+              <h3 style={{ fontSize: '1rem', marginBottom: '0.25rem' }}>{userName}</h3>
+              <p style={{ fontSize: '0.7rem', opacity: 0.8 }}>Student</p>
+            </>
+          )}
+          {sidebarCollapsed && (
+            <div style={{ 
+              width: '40px', 
+              height: '40px', 
+              background: '#ffc107', 
+              borderRadius: '50%', 
+              display: 'flex', 
+              alignItems: 'center', 
+              justifyContent: 'center', 
+              margin: '0 auto' 
+            }}>
+              <i className="fas fa-graduation-cap" style={{ fontSize: '1.2rem', color: '#1a3a5c' }}></i>
+            </div>
+          )}
+          
+          {/* Collapse Toggle Button */}
+          {!isMobile && (
+            <button
+              onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
+              style={{
+                position: 'absolute',
+                bottom: '-12px',
+                right: '-12px',
+                width: '24px',
+                height: '24px',
+                background: '#ffc107',
+                border: 'none',
+                borderRadius: '50%',
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                color: '#1a3a5c'
+              }}
+            >
+              <i className={`fas fa-chevron-${sidebarCollapsed ? 'right' : 'left'}`} style={{ fontSize: '0.7rem' }}></i>
+            </button>
+          )}
         </div>
 
         {/* Navigation Menu */}
-        <nav style={{ flex: 1, padding: '1rem 0' }}>
+        <nav style={{ flex: 1, padding: '1rem 0', overflowY: 'auto' }}>
           {menuItems.map((item) => (
             <button
               key={item.id}
               onClick={() => {
                 setActiveTab(item.id);
-                setSidebarOpen(false);
+                if (isMobile) setMobileMenuOpen(false);
               }}
               style={{
                 display: 'flex',
                 alignItems: 'center',
+                justifyContent: sidebarCollapsed ? 'center' : 'flex-start',
                 gap: '12px',
                 width: '100%',
-                padding: '12px 24px',
+                padding: sidebarCollapsed ? '12px' : '12px 24px',
                 background: activeTab === item.id ? 'rgba(255,255,255,0.1)' : 'transparent',
                 border: 'none',
                 color: 'white',
                 cursor: 'pointer',
                 transition: 'all 0.3s ease',
                 fontSize: '0.9rem',
-                textAlign: 'left'
+                textAlign: 'left',
+                position: 'relative'
               }}
               onMouseEnter={(e) => { if (activeTab !== item.id) e.currentTarget.style.background = 'rgba(255,255,255,0.05)'; }}
               onMouseLeave={(e) => { if (activeTab !== item.id) e.currentTarget.style.background = 'transparent'; }}
             >
-              <i className={item.icon} style={{ width: '20px', color: item.color }}></i>
-              <span>{item.label}</span>
-              {activeTab === item.id && (
+              <i className={item.icon} style={{ width: '20px', color: item.color, fontSize: '1.1rem' }}></i>
+              {!sidebarCollapsed && <span>{item.label}</span>}
+              {activeTab === item.id && !sidebarCollapsed && (
                 <div style={{ marginLeft: 'auto', width: '4px', height: '20px', background: '#ffc107', borderRadius: '2px' }}></div>
+              )}
+              {activeTab === item.id && sidebarCollapsed && (
+                <div style={{ 
+                  position: 'absolute', 
+                  left: 0, 
+                  top: 0, 
+                  bottom: 0, 
+                  width: '4px', 
+                  background: '#ffc107' 
+                }}></div>
               )}
             </button>
           ))}
         </nav>
 
         {/* Logout Button at Bottom */}
-        <div style={{ padding: '1rem', borderTop: '1px solid rgba(255,255,255,0.1)' }}>
+        <div style={{ padding: sidebarCollapsed ? '1rem' : '1rem', borderTop: '1px solid rgba(255,255,255,0.1)' }}>
           <button
             onClick={handleLogout}
             style={{
               display: 'flex',
               alignItems: 'center',
+              justifyContent: sidebarCollapsed ? 'center' : 'flex-start',
               gap: '12px',
               width: '100%',
-              padding: '12px',
+              padding: sidebarCollapsed ? '12px' : '12px',
               background: '#e74c3c',
               border: 'none',
               borderRadius: '8px',
               color: 'white',
               cursor: 'pointer',
               transition: 'all 0.3s ease',
-              fontSize: '0.9rem',
-              justifyContent: 'center'
+              fontSize: '0.9rem'
             }}
             onMouseEnter={(e) => e.currentTarget.style.background = '#c0392b'}
             onMouseLeave={(e) => e.currentTarget.style.background = '#e74c3c'}
           >
             <i className="fas fa-sign-out-alt"></i>
-            <span>Logout</span>
+            {!sidebarCollapsed && <span>Logout</span>}
           </button>
         </div>
       </aside>
@@ -215,7 +323,7 @@ const StudentDashboard = () => {
       {/* Main Content */}
       <main style={{
         flex: 1,
-        marginLeft: sidebarOpen ? '280px' : '0',
+        marginLeft: isMobile ? '0' : sidebarWidth,
         transition: 'margin-left 0.3s ease',
         width: '100%'
       }}>
@@ -234,24 +342,49 @@ const StudentDashboard = () => {
           gap: '1rem'
         }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+            {/* Mobile Menu Button */}
             <button
-              onClick={() => setSidebarOpen(!sidebarOpen)}
+              onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
               style={{
                 background: 'none',
                 border: 'none',
                 fontSize: '1.5rem',
                 cursor: 'pointer',
                 color: '#1a3a5c',
-                display: 'block'
+                display: isMobile ? 'block' : 'none'
               }}
             >
-              <i className={`fas ${sidebarOpen ? 'fa-times' : 'fa-bars'}`}></i>
+              <i className="fas fa-bars"></i>
             </button>
+            
+            {/* Desktop Collapse Button (on navbar) */}
+            {!isMobile && (
+              <button
+                onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
+                style={{
+                  background: 'none',
+                  border: 'none',
+                  fontSize: '1.2rem',
+                  cursor: 'pointer',
+                  color: '#1a3a5c',
+                  display: 'flex',
+                  alignItems: 'center'
+                }}
+              >
+                <i className={`fas fa-chevron-${sidebarCollapsed ? 'right' : 'left'}`}></i>
+              </button>
+            )}
+            
             <div>
-              <h2 style={{ color: '#1a3a5c', fontSize: '1.2rem' }}>Student Dashboard</h2>
-              <p style={{ fontSize: '0.7rem', color: '#666' }}>Welcome back, {userName}</p>
+              <h2 style={{ color: '#1a3a5c', fontSize: '1.2rem' }}>
+                {menuItems.find(i => i.id === activeTab)?.label} Dashboard
+              </h2>
+              <p style={{ fontSize: '0.7rem', color: '#666' }}>
+                {menuItems.find(i => i.id === activeTab)?.description}
+              </p>
             </div>
           </div>
+          
           <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
               <div style={{
@@ -266,7 +399,7 @@ const StudentDashboard = () => {
               }}>
                 <i className="fas fa-user-graduate"></i>
               </div>
-              <div style={{ display: 'none', '@media (min-width: 768px)': { display: 'block' } }}>
+              <div style={{ display: isMobile ? 'none' : 'block' }}>
                 <div style={{ fontWeight: '600', color: '#1a3a5c' }}>{userName}</div>
                 <div style={{ fontSize: '0.7rem', color: '#ffc107' }}>Student</div>
               </div>
@@ -293,7 +426,7 @@ const StudentDashboard = () => {
           {/* Overview Tab */}
           {activeTab === 'overview' && (
             <>
-              {/* Stats Cards */}
+              {/* Stats Cards with Real Data */}
               <div style={{
                 display: 'grid',
                 gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
@@ -305,7 +438,7 @@ const StudentDashboard = () => {
                     <i className="fas fa-chart-line" style={{ fontSize: '1.5rem', color: '#1a3a5c' }}></i>
                   </div>
                   <div>
-                    <h3 style={{ fontSize: '1.5rem', color: '#1a3a5c' }}>{dashboardData?.averageScore || 0}%</h3>
+                    <h3 style={{ fontSize: '1.5rem', color: '#1a3a5c' }}>{calculateAverageScore()}%</h3>
                     <p style={{ fontSize: '0.75rem', color: '#666' }}>Average Grade</p>
                   </div>
                 </div>
@@ -314,7 +447,7 @@ const StudentDashboard = () => {
                     <i className="fas fa-calendar-check" style={{ fontSize: '1.5rem', color: '#27ae60' }}></i>
                   </div>
                   <div>
-                    <h3 style={{ fontSize: '1.5rem', color: '#27ae60' }}>{dashboardData?.attendanceRate || 0}%</h3>
+                    <h3 style={{ fontSize: '1.5rem', color: '#27ae60' }}>{calculateAttendanceRate()}%</h3>
                     <p style={{ fontSize: '0.75rem', color: '#666' }}>Attendance Rate</p>
                   </div>
                 </div>
@@ -332,13 +465,13 @@ const StudentDashboard = () => {
                     <i className="fas fa-trophy" style={{ fontSize: '1.5rem', color: '#9b59b6' }}></i>
                   </div>
                   <div>
-                    <h3 style={{ fontSize: '1.5rem', color: '#9b59b6' }}>Top 15%</h3>
-                    <p style={{ fontSize: '0.75rem', color: '#666' }}>Class Rank</p>
+                    <h3 style={{ fontSize: '1.5rem', color: '#9b59b6' }}>{dashboardData?.grades?.length || 0}</h3>
+                    <p style={{ fontSize: '0.75rem', color: '#666' }}>Total Grades</p>
                   </div>
                 </div>
               </div>
 
-              {/* Recent Grades */}
+              {/* Recent Grades - Real Data */}
               <div style={{ background: 'white', borderRadius: '12px', padding: '1rem', marginBottom: '1.5rem' }}>
                 <h3 style={{ color: '#1a3a5c', marginBottom: '1rem' }}>Recent Grades</h3>
                 <div style={{ overflowX: 'auto' }}>
@@ -352,7 +485,7 @@ const StudentDashboard = () => {
                       </tr>
                     </thead>
                     <tbody>
-                      {dashboardData?.grades?.slice(0, 4).map((grade, idx) => (
+                      {dashboardData?.grades?.slice(0, 5).map((grade, idx) => (
                         <tr key={idx} style={{ borderBottom: '1px solid #e0e0e0' }}>
                           <td style={{ padding: '10px' }}>{grade.subject}</td>
                           <td style={{ padding: '10px', fontWeight: 'bold', color: getGradeColor(grade.score) }}>{grade.score}%</td>
@@ -367,7 +500,7 @@ const StudentDashboard = () => {
                 </div>
               </div>
 
-              {/* Recent Attendance */}
+              {/* Recent Attendance - Real Data */}
               <div style={{ background: 'white', borderRadius: '12px', padding: '1rem' }}>
                 <h3 style={{ color: '#1a3a5c', marginBottom: '1rem' }}>Recent Attendance</h3>
                 <div style={{ overflowX: 'auto' }}>
@@ -394,7 +527,7 @@ const StudentDashboard = () => {
             </>
           )}
 
-          {/* Grades Tab */}
+          {/* Grades Tab - Real Data */}
           {activeTab === 'grades' && (
             <div style={{ background: 'white', borderRadius: '12px', padding: '1rem', overflowX: 'auto' }}>
               <h3 style={{ color: '#1a3a5c', marginBottom: '1rem' }}>All Grades</h3>
@@ -425,7 +558,7 @@ const StudentDashboard = () => {
             </div>
           )}
 
-          {/* Attendance Tab */}
+          {/* Attendance Tab - Real Data */}
           {activeTab === 'attendance' && (
             <div style={{ background: 'white', borderRadius: '12px', padding: '1rem', overflowX: 'auto' }}>
               <h3 style={{ color: '#1a3a5c', marginBottom: '1rem' }}>All Attendance Records</h3>
@@ -452,7 +585,7 @@ const StudentDashboard = () => {
             </div>
           )}
 
-          {/* Assignments Tab */}
+          {/* Assignments Tab - Real Data */}
           {activeTab === 'assignments' && (
             <div style={{ background: 'white', borderRadius: '12px', padding: '1rem' }}>
               <h3 style={{ color: '#1a3a5c', marginBottom: '1rem' }}>Assignments</h3>
@@ -482,11 +615,14 @@ const StudentDashboard = () => {
                         background: assignment.status === 'pending' ? '#e74c3c' : '#27ae60',
                         color: 'white'
                       }}>
-                        {assignment.status === 'pending' ? 'Pending Submission' : 'Submitted'}
+                        {assignment.status === 'pending' ? 'Pending Submission' : assignment.score ? `Graded: ${assignment.score}%` : 'Submitted'}
                       </span>
                     </div>
                   </div>
                 ))}
+                {(!dashboardData?.assignments || dashboardData.assignments.length === 0) && (
+                  <p style={{ textAlign: 'center', color: '#666', padding: '2rem' }}>No assignments found</p>
+                )}
               </div>
             </div>
           )}
@@ -510,10 +646,15 @@ const StudentDashboard = () => {
                         <div>English</div>
                         <div style={{ fontSize: '0.7rem', color: '#666' }}>Mme. Chantal - Rm 102</div>
                       </div>
-                      <div>
+                      <div style={{ marginBottom: '8px' }}>
                         <div><strong>11:30 - 1:00</strong></div>
                         <div>Physics</div>
                         <div style={{ fontSize: '0.7rem', color: '#666' }}>Dr. Claude - Science Lab</div>
+                      </div>
+                      <div>
+                        <div><strong>2:00 - 3:30</strong></div>
+                        <div>Computer Science</div>
+                        <div style={{ fontSize: '0.7rem', color: '#666' }}>Mr. Eric N - Comp Lab</div>
                       </div>
                     </div>
                   </div>
@@ -547,13 +688,23 @@ const StudentDashboard = () => {
                     <div style={{ fontSize: '0.75rem', color: '#666' }}>2:00 PM - 5:00 PM</div>
                   </div>
                 </div>
+                <div style={{ padding: '1rem', background: '#f8f9fa', borderRadius: '8px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1rem' }}>
+                  <div>
+                    <h4>English Essay Exam</h4>
+                    <p style={{ fontSize: '0.85rem', color: '#666' }}>Writing and comprehension test</p>
+                  </div>
+                  <div style={{ textAlign: 'right' }}>
+                    <div style={{ fontWeight: 'bold', color: '#e74c3c' }}>May 25, 2026</div>
+                    <div style={{ fontSize: '0.75rem', color: '#666' }}>8:00 AM - 11:00 AM</div>
+                  </div>
+                </div>
               </div>
             </div>
           )}
 
           {/* Fees Tab */}
           {activeTab === 'fees' && (
-            <div style={{ background: 'white', borderRadius: '12px', padding: '1rem' }}>
+            <div style={{ background: 'white', borderRadius: '12px', padding: '1rem', overflowX: 'auto' }}>
               <h3 style={{ color: '#1a3a5c', marginBottom: '1rem' }}>Fee Status</h3>
               <table style={{ width: '100%', borderCollapse: 'collapse' }}>
                 <thead>
@@ -566,19 +717,19 @@ const StudentDashboard = () => {
                 </thead>
                 <tbody>
                   <tr style={{ borderBottom: '1px solid #e0e0e0' }}>
-                    <td style={{ padding: '12px' }}>Term 1</td>
+                    <td style={{ padding: '12px' }}>Term 1 2026</td>
                     <td style={{ padding: '12px' }}>150,000</td>
                     <td style={{ padding: '12px' }}><span style={{ background: '#d4edda', color: '#155724', padding: '4px 12px', borderRadius: '20px', fontSize: '0.75rem' }}>Paid</span></td>
                     <td style={{ padding: '12px' }}>Feb 15, 2026</td>
                   </tr>
                   <tr style={{ borderBottom: '1px solid #e0e0e0' }}>
-                    <td style={{ padding: '12px' }}>Term 2</td>
+                    <td style={{ padding: '12px' }}>Term 2 2026</td>
                     <td style={{ padding: '12px' }}>150,000</td>
                     <td style={{ padding: '12px' }}><span style={{ background: '#fff3cd', color: '#856404', padding: '4px 12px', borderRadius: '20px', fontSize: '0.75rem' }}>Pending</span></td>
                     <td style={{ padding: '12px' }}>May 15, 2026</td>
                   </tr>
-                  <tr>
-                    <td style={{ padding: '12px' }}>Term 3</td>
+                  <tr style={{ borderBottom: '1px solid #e0e0e0' }}>
+                    <td style={{ padding: '12px' }}>Term 3 2026</td>
                     <td style={{ padding: '12px' }}>150,000</td>
                     <td style={{ padding: '12px' }}><span style={{ background: '#fff3cd', color: '#856404', padding: '4px 12px', borderRadius: '20px', fontSize: '0.75rem' }}>Pending</span></td>
                     <td style={{ padding: '12px' }}>Sep 15, 2026</td>
@@ -588,7 +739,7 @@ const StudentDashboard = () => {
             </div>
           )}
 
-          {/* Profile Tab */}
+          {/* Profile Tab - Real Data */}
           {activeTab === 'profile' && (
             <div style={{ background: 'white', borderRadius: '12px', padding: '1.5rem' }}>
               <div style={{ textAlign: 'center', marginBottom: '2rem' }}>
@@ -614,6 +765,10 @@ const StudentDashboard = () => {
                 <div style={{ marginBottom: '1rem', padding: '0.75rem', background: '#f8f9fa', borderRadius: '8px' }}>
                   <label style={{ fontWeight: 'bold', display: 'block', marginBottom: '0.25rem', color: '#666' }}>Class</label>
                   <p>{dashboardData?.student?.grade} {dashboardData?.student?.className}</p>
+                </div>
+                <div style={{ marginBottom: '1rem', padding: '0.75rem', background: '#f8f9fa', borderRadius: '8px' }}>
+                  <label style={{ fontWeight: 'bold', display: 'block', marginBottom: '0.25rem', color: '#666' }}>Combination</label>
+                  <p>{dashboardData?.student?.combination || 'Software Development'}</p>
                 </div>
               </div>
             </div>
