@@ -26,7 +26,7 @@ const seedDatabase = async () => {
     // Create users
     const users = [
       {
-        fullName: 'Jean Paul Ndayisaba',
+        fullName: 'Mukeshimana Kevin',
         email: 'student@essa.rw',
         password: hashedPasswordStudent,
         role: 'student',
@@ -36,7 +36,7 @@ const seedDatabase = async () => {
         createdAt: new Date()
       },
       {
-        fullName: 'Mukansanga Marie',
+        fullName: 'Ntihinduka Elissa',
         email: 'teacher@essa.rw',
         password: hashedPasswordTeacher,
         role: 'teacher',
@@ -46,7 +46,7 @@ const seedDatabase = async () => {
         createdAt: new Date()
       },
       {
-        fullName: 'Habimana Jean',
+        fullName: 'Papa Kevin',
         email: 'parent@essa.rw',
         password: hashedPasswordParent,
         role: 'parent',
@@ -56,7 +56,7 @@ const seedDatabase = async () => {
         createdAt: new Date()
       },
       {
-        fullName: 'Dr. Uwimana Jean Paul',
+        fullName: 'AineByoona James',
         email: 'admin@essa.rw',
         password: hashedPasswordAdmin,
         role: 'admin',
