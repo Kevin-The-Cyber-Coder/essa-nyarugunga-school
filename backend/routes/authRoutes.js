@@ -1,20 +1,56 @@
 const express = require('express');
 const router = express.Router();
-const { login, getMe } = require('../controllers/authController');
-const { protect } = require('../middleware/auth');
+const User = require('../models/User');
+const jwt = require('jsonwebtoken');
 
-// Public routes - No middleware
-router.post('/login', (req, res, next) => {
-  console.log('Login route hit');
-  next();
-}, login);
+const generateToken = (id, role, name) => {
+  return jwt.sign({ id, role, name }, process.env.JWT_SECRET || 'secretkey', { expiresIn: '7d' });
+};
 
-// Protected routes
-router.get('/me', protect, getMe);
-
-// Test route
-router.get('/test', (req, res) => {
-  res.json({ message: 'Auth routes are working!' });
+// Login
+router.post('/login', async (req, res) => {
+  try {
+    const { email, password, role } = req.body;
+    
+    console.log('Login attempt:', { email, role });
+    
+    const user = await User.findOne({ email });
+    if (!user) {
+      return res.status(401).json({ message: 'Invalid email or password' });
+    }
+    
+    if (user.role !== role) {
+      return res.status(401).json({ message: 'Invalid role selected' });
+    }
+    
+    const isMatch = await user.comparePassword(password);
+    if (!isMatch) {
+      return res.status(401).json({ message: 'Invalid email or password' });
+    }
+    
+    if (!user.isActive) {
+      return res.status(401).json({ message: 'Account deactivated' });
+    }
+    
+    user.lastLogin = new Date();
+    await user.save();
+    
+    const token = generateToken(user._id, user.role, user.fullName);
+    
+    console.log('Login successful:', { email, role });
+    
+    res.json({
+      success: true,
+      _id: user._id,
+      fullName: user.fullName,
+      email: user.email,
+      role: user.role,
+      token
+    });
+  } catch (error) {
+    console.error('Login error:', error);
+    res.status(500).json({ message: error.message });
+  }
 });
 
 module.exports = router;

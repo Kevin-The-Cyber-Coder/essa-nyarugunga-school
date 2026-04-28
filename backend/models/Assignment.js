@@ -1,26 +1,24 @@
 const mongoose = require('mongoose');
 
-const submissionSchema = new mongoose.Schema({
-  student: { type: mongoose.Schema.Types.ObjectId, ref: 'Student' },
-  studentName: String,
-  submittedAt: { type: Date, default: Date.now },
-  fileUrl: String,
-  score: { type: Number, default: null },
-  feedback: String,
-  status: { type: String, enum: ['pending', 'submitted', 'graded'], default: 'pending' }
-});
-
 const assignmentSchema = new mongoose.Schema({
   title: { type: String, required: true },
-  description: { type: String, required: true },
+  description: String,
   subject: { type: String, required: true },
-  teacher: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
-  teacherName: { type: String, required: true },
-  className: { type: String, required: true },
+  classId: { type: mongoose.Schema.Types.ObjectId, ref: 'Class', required: true },
+  teacherId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
   dueDate: { type: Date, required: true },
   totalPoints: { type: Number, default: 100 },
-  submissions: [submissionSchema],
+  attachments: [{ fileName: String, fileUrl: String }],
+  submissions: [{
+    studentId: { type: mongoose.Schema.Types.ObjectId, ref: 'Student' },
+    submittedAt: Date,
+    fileUrl: String,
+    content: String,
+    score: Number,
+    feedback: String,
+    status: { type: String, enum: ['pending', 'submitted', 'graded'], default: 'pending' }
+  }],
   createdAt: { type: Date, default: Date.now }
 });
 
-module.exports = mongoose.model('Assignment', assignmentSchema);
+module.exports = mongoose.models.Assignment || mongoose.model('Assignment', assignmentSchema);

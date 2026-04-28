@@ -5902,3 +5902,10 @@ section {
     align-items: flex-start;
   }
 }
+.role-badge.super-admin { background: #8e44ad; }
+.role-badge.academic { background: #3498db; }
+.role-badge.discipline { background: #e74c3c; }
+.role-badge.accounts { background: #27ae60; }
+.role-badge.teacher { background: #f39c12; }
+.role-badge.student { background: #1abc9c; }
+.role-badge.parent { background: #9b59b6; }

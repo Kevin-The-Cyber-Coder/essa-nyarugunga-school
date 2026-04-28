@@ -1,43 +1,126 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import Swal from 'sweetalert2';
+import ChatModal from '../components/ChatModal';
 
 const StudentDashboard = () => {
   const [userName, setUserName] = useState('');
   const [userEmail, setUserEmail] = useState('');
+  const [userId, setUserId] = useState('');
   const [dashboardData, setDashboardData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState('overview');
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [showChatModal, setShowChatModal] = useState(false);
+  const [selectedRecipient, setSelectedRecipient] = useState(null);
+  const [unreadCount, setUnreadCount] = useState(0);
+  const [conversations, setConversations] = useState([]);
+  const [teachersList, setTeachersList] = useState([]);
+  const [adminsList, setAdminsList] = useState([]);
+  const [showChatList, setShowChatList] = useState(false);
   const navigate = useNavigate();
 
   // Check if mobile screen
   const [isMobile, setIsMobile] = useState(window.innerWidth <= 768);
 
+  const getToken = () => localStorage.getItem('portalToken');
+
   useEffect(() => {
     const handleResize = () => {
       setIsMobile(window.innerWidth <= 768);
-      if (window.innerWidth > 768) {
-        setMobileMenuOpen(false);
-      }
+      if (window.innerWidth > 768) setMobileMenuOpen(false);
     };
+    handleResize();
     window.addEventListener('resize', handleResize);
-    return () => window.removeEventListener('resize', handleResize);
+    
+    // Fetch unread count periodically
+    fetchUnreadCount();
+    const interval = setInterval(fetchUnreadCount, 30000);
+    
+    return () => {
+      window.removeEventListener('resize', handleResize);
+      clearInterval(interval);
+    };
   }, []);
 
+  // Fetch unread messages count
+  const fetchUnreadCount = async () => {
+    const token = getToken();
+    if (!token) return;
+    try {
+      const response = await fetch('http://localhost:5000/api/messages/unread/count', {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      if (response.ok) {
+        const data = await response.json();
+        setUnreadCount(data.count);
+      }
+    } catch (error) {
+      console.error('Error fetching unread count:', error);
+    }
+  };
+
+  // Fetch conversations
+  const fetchConversations = async () => {
+    const token = getToken();
+    try {
+      const response = await fetch('http://localhost:5000/api/messages/conversations', {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      if (response.ok) {
+        const data = await response.json();
+        setConversations(data);
+      }
+    } catch (error) {
+      console.error('Error fetching conversations:', error);
+    }
+  };
+
+  // Fetch teachers and admins for messaging
+  const fetchUsers = async () => {
+    const token = getToken();
+    try {
+      const [teachersRes, adminsRes] = await Promise.all([
+        fetch('http://localhost:5000/api/messages/users/teacher', {
+          headers: { 'Authorization': `Bearer ${token}` }
+        }),
+        fetch('http://localhost:5000/api/messages/admins', {
+          headers: { 'Authorization': `Bearer ${token}` }
+        })
+      ]);
+      
+      const teachers = await teachersRes.json();
+      const admins = await adminsRes.json();
+      
+      setTeachersList(teachers);
+      setAdminsList(admins);
+    } catch (error) {
+      console.error('Error fetching users:', error);
+    }
+  };
+
+  const handleOpenChat = (recipient) => {
+    setSelectedRecipient(recipient);
+    setShowChatModal(true);
+    setShowChatList(false);
+  };
+
   useEffect(() => {
-    const token = localStorage.getItem('portalToken');
+    const token = getToken();
     const role = localStorage.getItem('userRole');
     const name = localStorage.getItem('userName');
     const email = localStorage.getItem('userEmail');
+    const id = localStorage.getItem('userId');
     
     if (!token || role !== 'student') {
       navigate('/portal/login');
     } else {
       setUserName(name || 'Student');
       setUserEmail(email || 'student@essa.rw');
+      setUserId(id || '');
       fetchDashboardData(token);
+      fetchConversations();
     }
   }, [navigate]);
 
@@ -84,17 +167,6 @@ const StudentDashboard = () => {
     return '#e74c3c';
   };
 
-  const getGradeLetter = (score) => {
-    if (score >= 80) return 'A';
-    if (score >= 75) return 'B+';
-    if (score >= 70) return 'B';
-    if (score >= 65) return 'C+';
-    if (score >= 60) return 'C';
-    if (score >= 50) return 'D';
-    if (score >= 40) return 'E';
-    return 'F';
-  };
-
   const getAttendanceBadge = (status) => {
     const styles = {
       Present: { background: '#d4edda', color: '#155724', icon: 'fa-check-circle' },
@@ -129,6 +201,7 @@ const StudentDashboard = () => {
     { id: 'timetable', label: 'Timetable', icon: 'fas fa-calendar-alt', color: '#e74c3c', description: 'Class schedule' },
     { id: 'exams', label: 'Exams', icon: 'fas fa-file-alt', color: '#1abc9c', description: 'Exam schedule' },
     { id: 'fees', label: 'Fees', icon: 'fas fa-money-bill-wave', color: '#e67e22', description: 'Fee payment status' },
+    { id: 'messages', label: 'Messages', icon: 'fas fa-envelope', color: '#9b59b6', description: 'View messages' },
     { id: 'profile', label: 'Profile', icon: 'fas fa-user-circle', color: '#34495e', description: 'Personal information' }
   ];
 
@@ -148,6 +221,21 @@ const StudentDashboard = () => {
 
   return (
     <div style={{ display: 'flex', minHeight: '100vh', background: '#f0f4f8' }}>
+      {/* Chat Modal */}
+      <ChatModal
+        isOpen={showChatModal}
+        onClose={() => {
+          setShowChatModal(false);
+          fetchConversations();
+          fetchUnreadCount();
+        }}
+        recipient={selectedRecipient}
+        onMessageSent={() => {
+          fetchConversations();
+          fetchUnreadCount();
+        }}
+      />
+
       {/* Mobile Overlay */}
       {mobileMenuOpen && (
         <div 
@@ -164,7 +252,7 @@ const StudentDashboard = () => {
         />
       )}
 
-      {/* Sidebar - Desktop */}
+      {/* Sidebar */}
       <aside style={{
         width: isMobile ? sidebarWidthMobile : sidebarWidth,
         background: '#1a3a5c',
@@ -180,7 +268,6 @@ const StudentDashboard = () => {
         flexDirection: 'column',
         boxShadow: '2px 0 10px rgba(0,0,0,0.1)'
       }}>
-        {/* Sidebar Header with Collapse Button */}
         <div style={{ 
           padding: sidebarCollapsed ? '1rem 0' : '1.5rem', 
           borderBottom: '1px solid rgba(255,255,255,0.1)',
@@ -220,7 +307,6 @@ const StudentDashboard = () => {
             </div>
           )}
           
-          {/* Collapse Toggle Button */}
           {!isMobile && (
             <button
               onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
@@ -245,7 +331,89 @@ const StudentDashboard = () => {
           )}
         </div>
 
-        {/* Navigation Menu */}
+        {/* Messages Button in Sidebar */}
+        <div style={{ padding: '0 10px', marginBottom: '10px' }}>
+          <button 
+            onClick={() => {
+              fetchUsers();
+              setShowChatList(!showChatList);
+            }} 
+            style={{ 
+              background: '#9b59b6', 
+              color: 'white', 
+              border: 'none', 
+              padding: '10px', 
+              borderRadius: '8px', 
+              cursor: 'pointer',
+              width: '100%',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: '8px',
+              position: 'relative'
+            }}
+          >
+            <i className="fas fa-comment-dots"></i>
+            {!sidebarCollapsed && <span>Messages</span>}
+            {unreadCount > 0 && (
+              <span style={{
+                position: 'absolute',
+                top: '-5px',
+                right: '-5px',
+                background: '#e74c3c',
+                color: 'white',
+                borderRadius: '50%',
+                padding: '2px 6px',
+                fontSize: '10px',
+                fontWeight: 'bold'
+              }}>
+                {unreadCount}
+              </span>
+            )}
+          </button>
+          
+          {showChatList && (
+            <div style={{
+              position: 'absolute',
+              background: 'white',
+              borderRadius: '12px',
+              boxShadow: '0 5px 20px rgba(0,0,0,0.15)',
+              width: '260px',
+              zIndex: 200,
+              marginTop: '5px',
+              left: sidebarCollapsed ? '70px' : '260px'
+            }}>
+              <div style={{ padding: '12px', borderBottom: '1px solid #e0e0e0', fontWeight: 'bold', color: '#333' }}>
+                Send Message to:
+              </div>
+              <div style={{ maxHeight: '300px', overflowY: 'auto' }}>
+                <div style={{ padding: '8px 12px', background: '#f8f9fa', fontWeight: 'bold', color: '#333' }}>Teachers</div>
+                {teachersList.map(teacher => (
+                  <div
+                    key={teacher._id}
+                    onClick={() => handleOpenChat({ id: teacher._id, name: teacher.fullName, role: 'teacher' })}
+                    style={{ padding: '10px 12px', cursor: 'pointer', borderBottom: '1px solid #f0f0f0', color: '#333' }}
+                  >
+                    <div><strong>{teacher.fullName}</strong></div>
+                    <div style={{ fontSize: '0.7rem', color: '#666' }}>Teacher</div>
+                  </div>
+                ))}
+                <div style={{ padding: '8px 12px', background: '#f8f9fa', fontWeight: 'bold', color: '#333' }}>Admins</div>
+                {adminsList.map(admin => (
+                  <div
+                    key={admin._id}
+                    onClick={() => handleOpenChat({ id: admin._id, name: admin.fullName, role: 'admin' })}
+                    style={{ padding: '10px 12px', cursor: 'pointer', borderBottom: '1px solid #f0f0f0', color: '#333' }}
+                  >
+                    <div><strong>{admin.fullName}</strong></div>
+                    <div style={{ fontSize: '0.7rem', color: '#666' }}>Admin</div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+
         <nav style={{ flex: 1, padding: '1rem 0', overflowY: 'auto' }}>
           {menuItems.map((item) => (
             <button
@@ -253,6 +421,9 @@ const StudentDashboard = () => {
               onClick={() => {
                 setActiveTab(item.id);
                 if (isMobile) setMobileMenuOpen(false);
+                if (item.id === 'messages') {
+                  fetchConversations();
+                }
               }}
               style={{
                 display: 'flex',
@@ -270,29 +441,26 @@ const StudentDashboard = () => {
                 textAlign: 'left',
                 position: 'relative'
               }}
-              onMouseEnter={(e) => { if (activeTab !== item.id) e.currentTarget.style.background = 'rgba(255,255,255,0.05)'; }}
-              onMouseLeave={(e) => { if (activeTab !== item.id) e.currentTarget.style.background = 'transparent'; }}
             >
               <i className={item.icon} style={{ width: '20px', color: item.color, fontSize: '1.1rem' }}></i>
               {!sidebarCollapsed && <span>{item.label}</span>}
-              {activeTab === item.id && !sidebarCollapsed && (
-                <div style={{ marginLeft: 'auto', width: '4px', height: '20px', background: '#ffc107', borderRadius: '2px' }}></div>
-              )}
-              {activeTab === item.id && sidebarCollapsed && (
-                <div style={{ 
-                  position: 'absolute', 
-                  left: 0, 
-                  top: 0, 
-                  bottom: 0, 
-                  width: '4px', 
-                  background: '#ffc107' 
-                }}></div>
+              {item.id === 'messages' && unreadCount > 0 && !sidebarCollapsed && (
+                <span style={{
+                  marginLeft: 'auto',
+                  background: '#e74c3c',
+                  color: 'white',
+                  borderRadius: '50%',
+                  padding: '2px 6px',
+                  fontSize: '10px',
+                  fontWeight: 'bold'
+                }}>
+                  {unreadCount}
+                </span>
               )}
             </button>
           ))}
         </nav>
 
-        {/* Logout Button at Bottom */}
         <div style={{ padding: sidebarCollapsed ? '1rem' : '1rem', borderTop: '1px solid rgba(255,255,255,0.1)' }}>
           <button
             onClick={handleLogout}
@@ -311,8 +479,6 @@ const StudentDashboard = () => {
               transition: 'all 0.3s ease',
               fontSize: '0.9rem'
             }}
-            onMouseEnter={(e) => e.currentTarget.style.background = '#c0392b'}
-            onMouseLeave={(e) => e.currentTarget.style.background = '#e74c3c'}
           >
             <i className="fas fa-sign-out-alt"></i>
             {!sidebarCollapsed && <span>Logout</span>}
@@ -327,7 +493,6 @@ const StudentDashboard = () => {
         transition: 'margin-left 0.3s ease',
         width: '100%'
       }}>
-        {/* Top Navbar */}
         <nav style={{
           background: 'white',
           padding: '1rem 1.5rem',
@@ -342,39 +507,18 @@ const StudentDashboard = () => {
           gap: '1rem'
         }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
-            {/* Mobile Menu Button */}
             <button
-              onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+              onClick={() => isMobile ? setMobileMenuOpen(!mobileMenuOpen) : setSidebarCollapsed(!sidebarCollapsed)}
               style={{
                 background: 'none',
                 border: 'none',
                 fontSize: '1.5rem',
                 cursor: 'pointer',
-                color: '#1a3a5c',
-                display: isMobile ? 'block' : 'none'
+                color: '#1a3a5c'
               }}
             >
               <i className="fas fa-bars"></i>
             </button>
-            
-            {/* Desktop Collapse Button (on navbar) */}
-            {!isMobile && (
-              <button
-                onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
-                style={{
-                  background: 'none',
-                  border: 'none',
-                  fontSize: '1.2rem',
-                  cursor: 'pointer',
-                  color: '#1a3a5c',
-                  display: 'flex',
-                  alignItems: 'center'
-                }}
-              >
-                <i className={`fas fa-chevron-${sidebarCollapsed ? 'right' : 'left'}`}></i>
-              </button>
-            )}
-            
             <div>
               <h2 style={{ color: '#1a3a5c', fontSize: '1.2rem' }}>
                 {menuItems.find(i => i.id === activeTab)?.label} Dashboard
@@ -399,7 +543,7 @@ const StudentDashboard = () => {
               }}>
                 <i className="fas fa-user-graduate"></i>
               </div>
-              <div style={{ display: isMobile ? 'none' : 'block' }}>
+              <div>
                 <div style={{ fontWeight: '600', color: '#1a3a5c' }}>{userName}</div>
                 <div style={{ fontSize: '0.7rem', color: '#ffc107' }}>Student</div>
               </div>
@@ -407,9 +551,8 @@ const StudentDashboard = () => {
           </div>
         </nav>
 
-        {/* Content Area */}
         <div style={{ padding: '1.5rem' }}>
-          {/* Welcome Banner - Only on Overview */}
+          {/* Welcome Banner */}
           {activeTab === 'overview' && (
             <div style={{
               background: 'linear-gradient(135deg, #1a3a5c 0%, #2c5f8a 100%)',
@@ -426,7 +569,6 @@ const StudentDashboard = () => {
           {/* Overview Tab */}
           {activeTab === 'overview' && (
             <>
-              {/* Stats Cards with Real Data */}
               <div style={{
                 display: 'grid',
                 gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
@@ -439,7 +581,7 @@ const StudentDashboard = () => {
                   </div>
                   <div>
                     <h3 style={{ fontSize: '1.5rem', color: '#1a3a5c' }}>{calculateAverageScore()}%</h3>
-                    <p style={{ fontSize: '0.75rem', color: '#666' }}>Average Grade</p>
+                    <p>Average Grade</p>
                   </div>
                 </div>
                 <div style={{ background: 'white', padding: '1rem', borderRadius: '12px', display: 'flex', alignItems: 'center', gap: '1rem' }}>
@@ -448,7 +590,7 @@ const StudentDashboard = () => {
                   </div>
                   <div>
                     <h3 style={{ fontSize: '1.5rem', color: '#27ae60' }}>{calculateAttendanceRate()}%</h3>
-                    <p style={{ fontSize: '0.75rem', color: '#666' }}>Attendance Rate</p>
+                    <p>Attendance Rate</p>
                   </div>
                 </div>
                 <div style={{ background: 'white', padding: '1rem', borderRadius: '12px', display: 'flex', alignItems: 'center', gap: '1rem' }}>
@@ -457,7 +599,7 @@ const StudentDashboard = () => {
                   </div>
                   <div>
                     <h3 style={{ fontSize: '1.5rem', color: '#f39c12' }}>{dashboardData?.completedAssignments || 0}/{dashboardData?.totalAssignments || 0}</h3>
-                    <p style={{ fontSize: '0.75rem', color: '#666' }}>Assignments Done</p>
+                    <p>Assignments Done</p>
                   </div>
                 </div>
                 <div style={{ background: 'white', padding: '1rem', borderRadius: '12px', display: 'flex', alignItems: 'center', gap: '1rem' }}>
@@ -466,14 +608,13 @@ const StudentDashboard = () => {
                   </div>
                   <div>
                     <h3 style={{ fontSize: '1.5rem', color: '#9b59b6' }}>{dashboardData?.grades?.length || 0}</h3>
-                    <p style={{ fontSize: '0.75rem', color: '#666' }}>Total Grades</p>
+                    <p>Total Grades</p>
                   </div>
                 </div>
               </div>
 
-              {/* Recent Grades - Real Data */}
               <div style={{ background: 'white', borderRadius: '12px', padding: '1rem', marginBottom: '1.5rem' }}>
-                <h3 style={{ color: '#1a3a5c', marginBottom: '1rem' }}>Recent Grades</h3>
+                <h3 style={{ color: '#1a3a5c' }}>Recent Grades</h3>
                 <div style={{ overflowX: 'auto' }}>
                   <table style={{ width: '100%', borderCollapse: 'collapse' }}>
                     <thead>
@@ -500,9 +641,8 @@ const StudentDashboard = () => {
                 </div>
               </div>
 
-              {/* Recent Attendance - Real Data */}
               <div style={{ background: 'white', borderRadius: '12px', padding: '1rem' }}>
-                <h3 style={{ color: '#1a3a5c', marginBottom: '1rem' }}>Recent Attendance</h3>
+                <h3 style={{ color: '#1a3a5c' }}>Recent Attendance</h3>
                 <div style={{ overflowX: 'auto' }}>
                   <table style={{ width: '100%', borderCollapse: 'collapse' }}>
                     <thead>
@@ -527,10 +667,10 @@ const StudentDashboard = () => {
             </>
           )}
 
-          {/* Grades Tab - Real Data */}
+          {/* Grades Tab */}
           {activeTab === 'grades' && (
             <div style={{ background: 'white', borderRadius: '12px', padding: '1rem', overflowX: 'auto' }}>
-              <h3 style={{ color: '#1a3a5c', marginBottom: '1rem' }}>All Grades</h3>
+              <h3 style={{ color: '#1a3a5c' }}>All Grades</h3>
               <table style={{ width: '100%', borderCollapse: 'collapse' }}>
                 <thead>
                   <tr style={{ background: '#1a3a5c', color: 'white' }}>
@@ -558,10 +698,10 @@ const StudentDashboard = () => {
             </div>
           )}
 
-          {/* Attendance Tab - Real Data */}
+          {/* Attendance Tab */}
           {activeTab === 'attendance' && (
             <div style={{ background: 'white', borderRadius: '12px', padding: '1rem', overflowX: 'auto' }}>
-              <h3 style={{ color: '#1a3a5c', marginBottom: '1rem' }}>All Attendance Records</h3>
+              <h3 style={{ color: '#1a3a5c' }}>All Attendance Records</h3>
               <table style={{ width: '100%', borderCollapse: 'collapse' }}>
                 <thead>
                   <tr style={{ background: '#1a3a5c', color: 'white' }}>
@@ -585,10 +725,10 @@ const StudentDashboard = () => {
             </div>
           )}
 
-          {/* Assignments Tab - Real Data */}
+          {/* Assignments Tab */}
           {activeTab === 'assignments' && (
             <div style={{ background: 'white', borderRadius: '12px', padding: '1rem' }}>
-              <h3 style={{ color: '#1a3a5c', marginBottom: '1rem' }}>Assignments</h3>
+              <h3 style={{ color: '#1a3a5c' }}>Assignments</h3>
               <div style={{ display: 'grid', gap: '1rem' }}>
                 {dashboardData?.assignments?.map((assignment, idx) => (
                   <div key={idx} style={{
@@ -620,9 +760,6 @@ const StudentDashboard = () => {
                     </div>
                   </div>
                 ))}
-                {(!dashboardData?.assignments || dashboardData.assignments.length === 0) && (
-                  <p style={{ textAlign: 'center', color: '#666', padding: '2rem' }}>No assignments found</p>
-                )}
               </div>
             </div>
           )}
@@ -630,7 +767,7 @@ const StudentDashboard = () => {
           {/* Timetable Tab */}
           {activeTab === 'timetable' && (
             <div style={{ background: 'white', borderRadius: '12px', padding: '1rem' }}>
-              <h3 style={{ color: '#1a3a5c', marginBottom: '1rem' }}>Weekly Timetable</h3>
+              <h3 style={{ color: '#1a3a5c' }}>Weekly Timetable</h3>
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '1rem' }}>
                 {['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'].map(day => (
                   <div key={day} style={{ background: '#f8f9fa', borderRadius: '8px', overflow: 'hidden' }}>
@@ -666,7 +803,7 @@ const StudentDashboard = () => {
           {/* Exams Tab */}
           {activeTab === 'exams' && (
             <div style={{ background: 'white', borderRadius: '12px', padding: '1rem' }}>
-              <h3 style={{ color: '#1a3a5c', marginBottom: '1rem' }}>Upcoming Exams</h3>
+              <h3 style={{ color: '#1a3a5c' }}>Upcoming Exams</h3>
               <div style={{ display: 'grid', gap: '1rem' }}>
                 <div style={{ padding: '1rem', background: '#f8f9fa', borderRadius: '8px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1rem' }}>
                   <div>
@@ -688,16 +825,6 @@ const StudentDashboard = () => {
                     <div style={{ fontSize: '0.75rem', color: '#666' }}>2:00 PM - 5:00 PM</div>
                   </div>
                 </div>
-                <div style={{ padding: '1rem', background: '#f8f9fa', borderRadius: '8px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1rem' }}>
-                  <div>
-                    <h4>English Essay Exam</h4>
-                    <p style={{ fontSize: '0.85rem', color: '#666' }}>Writing and comprehension test</p>
-                  </div>
-                  <div style={{ textAlign: 'right' }}>
-                    <div style={{ fontWeight: 'bold', color: '#e74c3c' }}>May 25, 2026</div>
-                    <div style={{ fontSize: '0.75rem', color: '#666' }}>8:00 AM - 11:00 AM</div>
-                  </div>
-                </div>
               </div>
             </div>
           )}
@@ -705,7 +832,7 @@ const StudentDashboard = () => {
           {/* Fees Tab */}
           {activeTab === 'fees' && (
             <div style={{ background: 'white', borderRadius: '12px', padding: '1rem', overflowX: 'auto' }}>
-              <h3 style={{ color: '#1a3a5c', marginBottom: '1rem' }}>Fee Status</h3>
+              <h3 style={{ color: '#1a3a5c' }}>Fee Status</h3>
               <table style={{ width: '100%', borderCollapse: 'collapse' }}>
                 <thead>
                   <tr style={{ background: '#1a3a5c', color: 'white' }}>
@@ -728,18 +855,115 @@ const StudentDashboard = () => {
                     <td style={{ padding: '12px' }}><span style={{ background: '#fff3cd', color: '#856404', padding: '4px 12px', borderRadius: '20px', fontSize: '0.75rem' }}>Pending</span></td>
                     <td style={{ padding: '12px' }}>May 15, 2026</td>
                   </tr>
-                  <tr style={{ borderBottom: '1px solid #e0e0e0' }}>
-                    <td style={{ padding: '12px' }}>Term 3 2026</td>
-                    <td style={{ padding: '12px' }}>150,000</td>
-                    <td style={{ padding: '12px' }}><span style={{ background: '#fff3cd', color: '#856404', padding: '4px 12px', borderRadius: '20px', fontSize: '0.75rem' }}>Pending</span></td>
-                    <td style={{ padding: '12px' }}>Sep 15, 2026</td>
-                  </tr>
                 </tbody>
               </table>
             </div>
           )}
 
-          {/* Profile Tab - Real Data */}
+          {/* Messages Tab */}
+          {activeTab === 'messages' && (
+            <div style={{ background: 'white', borderRadius: '12px', padding: '1rem' }}>
+              <h3 style={{ color: '#1a3a5c' }}>Messages</h3>
+              <div style={{ marginTop: '1rem' }}>
+                <button 
+                  onClick={() => {
+                    fetchUsers();
+                    setShowChatList(!showChatList);
+                  }}
+                  style={{ background: '#9b59b6', color: 'white', border: 'none', padding: '10px 20px', borderRadius: '8px', cursor: 'pointer', marginRight: '10px' }}
+                >
+                  <i className="fas fa-plus"></i> New Message
+                </button>
+                <button 
+                  onClick={() => {
+                    fetchConversations();
+                    fetchUnreadCount();
+                  }}
+                  style={{ background: '#3498db', color: 'white', border: 'none', padding: '10px 20px', borderRadius: '8px', cursor: 'pointer' }}
+                >
+                  <i className="fas fa-sync-alt"></i> Refresh
+                </button>
+
+                {/* Conversations List */}
+                <div style={{ marginTop: '1.5rem' }}>
+                  <h4 style={{ color: '#1a3a5c', marginBottom: '1rem' }}>Your Conversations</h4>
+                  {conversations.length === 0 ? (
+                    <p style={{ textAlign: 'center', color: '#666', padding: '2rem' }}>No messages yet. Start a conversation!</p>
+                  ) : (
+                    conversations.map(conv => (
+                      <div
+                        key={conv._id}
+                        onClick={() => handleOpenChat({ 
+                          id: conv.participant.id, 
+                          name: conv.participant.name, 
+                          role: conv.participant.role 
+                        })}
+                        style={{
+                          padding: '12px',
+                          borderBottom: '1px solid #e0e0e0',
+                          cursor: 'pointer',
+                          background: conv.unreadCount > 0 ? '#f0f4f8' : 'white',
+                          borderRadius: '8px',
+                          marginBottom: '8px'
+                        }}
+                      >
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                          <div style={{ fontWeight: conv.unreadCount > 0 ? 'bold' : 'normal' }}>
+                            {conv.participant.name}
+                          </div>
+                          <div style={{ fontSize: '0.7rem', color: '#999' }}>
+                            {new Date(conv.lastMessage.createdAt).toLocaleDateString()}
+                          </div>
+                        </div>
+                        <div style={{ fontSize: '0.8rem', color: '#666', marginTop: '4px' }}>
+                          {conv.lastMessage.content?.substring(0, 60)}...
+                        </div>
+                        {conv.unreadCount > 0 && (
+                          <div style={{ marginTop: '4px' }}>
+                            <span style={{ background: '#e74c3c', color: 'white', padding: '2px 8px', borderRadius: '10px', fontSize: '0.7rem' }}>
+                              {conv.unreadCount} new
+                            </span>
+                          </div>
+                        )}
+                      </div>
+                    ))
+                  )}
+                </div>
+
+                {showChatList && (
+                  <div style={{ marginTop: '1rem', border: '1px solid #e0e0e0', borderRadius: '8px', overflow: 'hidden' }}>
+                    <div style={{ padding: '12px', background: '#f8f9fa', fontWeight: 'bold' }}>Send Message to:</div>
+                    <div style={{ maxHeight: '300px', overflowY: 'auto' }}>
+                      <div style={{ padding: '8px 12px', background: '#f8f9fa', fontWeight: 'bold' }}>Teachers</div>
+                      {teachersList.map(teacher => (
+                        <div
+                          key={teacher._id}
+                          onClick={() => handleOpenChat({ id: teacher._id, name: teacher.fullName, role: 'teacher' })}
+                          style={{ padding: '10px 12px', cursor: 'pointer', borderBottom: '1px solid #f0f0f0' }}
+                        >
+                          <div><strong>{teacher.fullName}</strong></div>
+                          <div style={{ fontSize: '0.7rem', color: '#666' }}>Teacher</div>
+                        </div>
+                      ))}
+                      <div style={{ padding: '8px 12px', background: '#f8f9fa', fontWeight: 'bold' }}>Admins</div>
+                      {adminsList.map(admin => (
+                        <div
+                          key={admin._id}
+                          onClick={() => handleOpenChat({ id: admin._id, name: admin.fullName, role: 'admin' })}
+                          style={{ padding: '10px 12px', cursor: 'pointer', borderBottom: '1px solid #f0f0f0' }}
+                        >
+                          <div><strong>{admin.fullName}</strong></div>
+                          <div style={{ fontSize: '0.7rem', color: '#666' }}>Admin</div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* Profile Tab */}
           {activeTab === 'profile' && (
             <div style={{ background: 'white', borderRadius: '12px', padding: '1.5rem' }}>
               <div style={{ textAlign: 'center', marginBottom: '2rem' }}>
@@ -775,15 +999,6 @@ const StudentDashboard = () => {
           )}
         </div>
       </main>
-
-      {/* Mobile Styles */}
-      <style>{`
-        @media (max-width: 768px) {
-          main {
-            margin-left: 0 !important;
-          }
-        }
-      `}</style>
     </div>
   );
 };

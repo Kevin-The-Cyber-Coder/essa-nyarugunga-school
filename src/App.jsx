@@ -1,4 +1,4 @@
-// src/App.js
+// src/App.jsx
 import React from 'react';
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 import './App.css';
@@ -17,14 +17,31 @@ import PortalLogin from './portals/PortalLogin';
 import StudentDashboard from './portals/StudentDashboard';
 import TeacherDashboard from './portals/TeacherDashboard';
 import ParentDashboard from './portals/ParentDashboard';
-import AdminDashboard from './portals/AdminDashboard';
-import ProtectedRoute from './components/ProtectedRoute';
+import SuperAdminDashboard from './portals/SuperAdminDashboard';
+
+// Protected Route Component
+const ProtectedRoute = ({ children, allowedRoles }) => {
+  const token = localStorage.getItem('portalToken');
+  const userRole = localStorage.getItem('userRole');
+  
+  if (!token) {
+    return <Navigate to="/portal/login" replace />;
+  }
+  
+  if (allowedRoles && !allowedRoles.includes(userRole)) {
+    return <Navigate to="/portal/login" replace />;
+  }
+  
+  return children;
+};
+
+import { Navigate } from 'react-router-dom';
 
 function App() {
   return (
     <Router>
       <Routes>
-        {/* Public Pages */}
+        {/* Public Routes */}
         <Route path="/" element={<HomePage />} />
         <Route path="/about" element={<AboutPage />} />
         <Route path="/academics" element={<AcademicsPage />} />
@@ -36,55 +53,30 @@ function App() {
         {/* Portal Login */}
         <Route path="/portal/login" element={<PortalLogin />} />
         
-        {/* Protected Portal Dashboards */}
+        {/* Protected Portal Routes */}
+        <Route path="/portal/super-admin" element={
+          <ProtectedRoute allowedRoles={['super_admin']}>
+            <SuperAdminDashboard />
+          </ProtectedRoute>
+        } />
         <Route path="/portal/student" element={
-          <ProtectedRoute role="student">
+          <ProtectedRoute allowedRoles={['student']}>
             <StudentDashboard />
           </ProtectedRoute>
         } />
         <Route path="/portal/teacher" element={
-          <ProtectedRoute role="teacher">
+          <ProtectedRoute allowedRoles={['teacher']}>
             <TeacherDashboard />
           </ProtectedRoute>
         } />
         <Route path="/portal/parent" element={
-          <ProtectedRoute role="parent">
+          <ProtectedRoute allowedRoles={['parent']}>
             <ParentDashboard />
           </ProtectedRoute>
         } />
-        <Route path="/portal/admin" element={
-          <ProtectedRoute role="admin">
-            <AdminDashboard />
-          </ProtectedRoute>
-        } />
-        // In App.jsx, update the portal routes:
-import ProtectedRoute from './components/ProtectedRoute';
-
-// Then wrap the dashboard routes:
-<Route path="/portal/student" element={
-  <ProtectedRoute allowedRoles={['student']}>
-    <StudentDashboard />
-  </ProtectedRoute>
-} />
-<Route path="/portal/teacher" element={
-  <ProtectedRoute allowedRoles={['teacher']}>
-    <TeacherDashboard />
-  </ProtectedRoute>
-} />
-<Route path="/portal/parent" element={
-  <ProtectedRoute allowedRoles={['parent']}>
-    <ParentDashboard />
-  </ProtectedRoute>
-} />
-<Route path="/portal/admin" element={
-  <ProtectedRoute allowedRoles={['admin']}>
-    <AdminDashboard />
-  </ProtectedRoute>
-} />
       </Routes>
     </Router>
   );
 }
-
 
 export default App;
