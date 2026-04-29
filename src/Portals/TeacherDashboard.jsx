@@ -5,23 +5,20 @@ import io from 'socket.io-client';
 
 const TeacherDashboard = () => {
   const [userName, setUserName] = useState('');
+  const [userEmail, setUserEmail] = useState('');
   const [activeTab, setActiveTab] = useState('overview');
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  const [isMobile, setIsMobile] = useState(false);
+  const [isMobile, setIsMobile] = useState(window.innerWidth <= 768);
+  const [loading, setLoading] = useState(true);
   const [students, setStudents] = useState([]);
   const [classes, setClasses] = useState([]);
   const [assignments, setAssignments] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [messages, setMessages] = useState([]);
-  const [users, setUsers] = useState([]);
-  const [selectedUser, setSelectedUser] = useState(null);
-  const [messageText, setMessageText] = useState('');
-  const [unreadCount, setUnreadCount] = useState(0);
   const [socket, setSocket] = useState(null);
   const navigate = useNavigate();
 
   const API_URL = 'http://localhost:5000/api';
+  
   const getToken = () => localStorage.getItem('portalToken');
 
   // Check mobile screen
@@ -30,7 +27,6 @@ const TeacherDashboard = () => {
       setIsMobile(window.innerWidth <= 768);
       if (window.innerWidth > 768) setMobileMenuOpen(false);
     };
-    checkMobile();
     window.addEventListener('resize', checkMobile);
     return () => window.removeEventListener('resize', checkMobile);
   }, []);
@@ -39,19 +35,6 @@ const TeacherDashboard = () => {
   useEffect(() => {
     const newSocket = io('http://localhost:5000');
     setSocket(newSocket);
-    
-    const userId = localStorage.getItem('userId');
-    if (userId) {
-      newSocket.emit('join', userId);
-    }
-    
-    newSocket.on('newMessage', (message) => {
-      if (selectedUser && message.senderId === selectedUser._id) {
-        setMessages(prev => [...prev, message]);
-      }
-      fetchUnreadCount();
-    });
-    
     return () => newSocket.disconnect();
   }, []);
 
@@ -59,121 +42,68 @@ const TeacherDashboard = () => {
     const token = getToken();
     const role = localStorage.getItem('userRole');
     const name = localStorage.getItem('userName');
+    const email = localStorage.getItem('userEmail');
     
-    if (!token || role !== 'teacher') {
+    if (!token) {
       navigate('/portal/login');
-    } else {
-      setUserName(name || 'Teacher');
-      fetchData();
-      fetchUsers();
-      fetchUnreadCount();
+      return;
     }
+    
+    if (role !== 'teacher') {
+      navigate('/portal/login');
+      return;
+    }
+    
+    setUserName(name || 'Teacher');
+    setUserEmail(email || 'teacher@essa.rw');
+    fetchData();
   }, [navigate]);
 
   const fetchData = async () => {
     const token = getToken();
+    if (!token) {
+      console.error('No token found');
+      setLoading(false);
+      return;
+    }
+    
     try {
-      const [studentsRes, classesRes, assignmentsRes] = await Promise.all([
-        fetch(`${API_URL}/teacher/students`, { headers: { 'Authorization': `Bearer ${token}` } }),
-        fetch(`${API_URL}/teacher/classes`, { headers: { 'Authorization': `Bearer ${token}` } }),
-        fetch(`${API_URL}/teacher/assignments`, { headers: { 'Authorization': `Bearer ${token}` } })
-      ]);
-      
+      // Fetch students
+      const studentsRes = await fetch(`${API_URL}/teacher/students`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
       if (studentsRes.ok) {
         const data = await studentsRes.json();
         setStudents(data);
+      } else {
+        console.error('Failed to fetch students:', studentsRes.status);
       }
+      
+      // Fetch classes
+      const classesRes = await fetch(`${API_URL}/teacher/classes`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
       if (classesRes.ok) {
         const data = await classesRes.json();
         setClasses(data);
+      } else {
+        console.error('Failed to fetch classes:', classesRes.status);
       }
+      
+      // Fetch assignments
+      const assignmentsRes = await fetch(`${API_URL}/teacher/assignments`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
       if (assignmentsRes.ok) {
         const data = await assignmentsRes.json();
         setAssignments(data);
+      } else {
+        console.error('Failed to fetch assignments:', assignmentsRes.status);
       }
     } catch (error) {
       console.error('Error fetching data:', error);
     } finally {
       setLoading(false);
-    }
-  };
-
-  const fetchUsers = async () => {
-    const token = getToken();
-    try {
-      const response = await fetch(`${API_URL}/messages/users`, {
-        headers: { 'Authorization': `Bearer ${token}` }
-      });
-      if (response.ok) {
-        const data = await response.json();
-        setUsers(data);
-      }
-    } catch (error) {
-      console.error('Error fetching users:', error);
-    }
-  };
-
-  const fetchUnreadCount = async () => {
-    const token = getToken();
-    try {
-      const response = await fetch(`${API_URL}/messages/unread/count`, {
-        headers: { 'Authorization': `Bearer ${token}` }
-      });
-      if (response.ok) {
-        const data = await response.json();
-        setUnreadCount(data.count);
-      }
-    } catch (error) {
-      console.error('Error fetching unread count:', error);
-    }
-  };
-
-  const fetchMessages = async (userId) => {
-    const token = getToken();
-    try {
-      const response = await fetch(`${API_URL}/messages/user/${userId}`, {
-        headers: { 'Authorization': `Bearer ${token}` }
-      });
-      if (response.ok) {
-        const data = await response.json();
-        setMessages(data);
-        fetchUnreadCount();
-      }
-    } catch (error) {
-      console.error('Error fetching messages:', error);
-    }
-  };
-
-  const handleSendMessage = async () => {
-    if (!messageText.trim() || !selectedUser) return;
-    
-    const token = getToken();
-    try {
-      const response = await fetch(`${API_URL}/messages/send`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
-        },
-        body: JSON.stringify({
-          receiverId: selectedUser._id,
-          content: messageText
-        })
-      });
-      
-      if (response.ok) {
-        const newMessage = await response.json();
-        setMessages([...messages, newMessage.message]);
-        setMessageText('');
-        if (socket) {
-          socket.emit('sendMessage', {
-            receiverId: selectedUser._id,
-            ...newMessage.message
-          });
-        }
-      }
-    } catch (error) {
-      console.error('Error sending message:', error);
     }
   };
 
@@ -208,7 +138,10 @@ const TeacherDashboard = () => {
       const token = getToken();
       const response = await fetch(`${API_URL}/teacher/classes`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
         body: JSON.stringify(formValues)
       });
       
@@ -231,21 +164,21 @@ const TeacherDashboard = () => {
     const { value: formValues } = await Swal.fire({
       title: 'Create New Student',
       html: `
-        <input type="text" id="fullName" class="swal2-input" placeholder="Full Name *" required>
-        <input type="email" id="email" class="swal2-input" placeholder="Email Address *" required>
-        <input type="text" id="password" class="swal2-input" placeholder="Password (auto-generated if empty)">
-        <input type="text" id="studentId" class="swal2-input" placeholder="Student ID *" required>
-        <select id="classId" class="swal2-select" required>
-          <option value="">Select Class *</option>
-          ${classes.map(c => `<option value="${c._id}">${c.grade} ${c.className}</option>`).join('')}
-        </select>
-        <input type="text" id="parentName" class="swal2-input" placeholder="Parent Name (Optional)">
-        <input type="email" id="parentEmail" class="swal2-input" placeholder="Parent Email (Optional)">
+        <div style="text-align: left;">
+          <input type="text" id="fullName" class="swal2-input" placeholder="Full Name *" required>
+          <input type="email" id="email" class="swal2-input" placeholder="Email Address *" required>
+          <input type="password" id="password" class="swal2-input" placeholder="Password (auto-generated if empty)">
+          <input type="text" id="studentId" class="swal2-input" placeholder="Student ID *" required>
+          <select id="classId" class="swal2-select" required>
+            <option value="">Select Class *</option>
+            ${classes.map(c => `<option value="${c._id}">${c.grade} ${c.className}</option>`).join('')}
+          </select>
+        </div>
       `,
       confirmButtonText: 'Create Student',
       confirmButtonColor: '#27ae60',
       showCancelButton: true,
-      width: '550px',
+      width: '500px',
       preConfirm: () => {
         const fullName = document.getElementById('fullName').value;
         const email = document.getElementById('email').value;
@@ -260,9 +193,7 @@ const TeacherDashboard = () => {
         return {
           fullName, email,
           password: document.getElementById('password').value || `student${Math.floor(Math.random() * 10000)}`,
-          studentId, classId,
-          parentName: document.getElementById('parentName').value,
-          parentEmail: document.getElementById('parentEmail').value
+          studentId, classId
         };
       }
     });
@@ -271,7 +202,10 @@ const TeacherDashboard = () => {
       const token = getToken();
       const response = await fetch(`${API_URL}/teacher/create-student`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
         body: JSON.stringify(formValues)
       });
       
@@ -296,126 +230,31 @@ const TeacherDashboard = () => {
     }
   };
 
-  // Edit Student
-  const handleEditStudent = async (student) => {
-    const { value: formValues } = await Swal.fire({
-      title: 'Edit Student',
-      html: `
-        <input type="text" id="fullName" class="swal2-input" value="${student.user?.fullName || student.fullName}" required>
-        <input type="email" id="email" class="swal2-input" value="${student.user?.email || student.email}" required>
-        <select id="classId" class="swal2-select" required>
-          <option value="">Select Class</option>
-          ${classes.map(c => `<option value="${c._id}" ${student.classId === c._id ? 'selected' : ''}>${c.grade} ${c.className}</option>`).join('')}
-        </select>
-      `,
-      confirmButtonText: 'Update Student',
-      confirmButtonColor: '#3498db',
-      showCancelButton: true,
-      preConfirm: () => {
-        const fullName = document.getElementById('fullName').value;
-        const email = document.getElementById('email').value;
-        const classId = document.getElementById('classId').value;
-        if (!fullName || !email || !classId) {
-          Swal.showValidationMessage('Please fill required fields');
-          return false;
-        }
-        return { fullName, email, classId };
-      }
-    });
-
-    if (formValues) {
-      const token = getToken();
-      try {
-        const response = await fetch(`${API_URL}/teacher/students/${student._id}`, {
-          method: 'PUT',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${token}`
-          },
-          body: JSON.stringify(formValues)
-        });
-        
-        if (response.ok) {
-          Swal.fire('Success!', 'Student updated successfully', 'success');
-          fetchData();
-        } else {
-          Swal.fire('Error', 'Failed to update student', 'error');
-        }
-      } catch (error) {
-        Swal.fire('Error', 'Network error', 'error');
-      }
-    }
-  };
-
   // Delete Student
   const handleDeleteStudent = async (student) => {
     const result = await Swal.fire({
       title: 'Delete Student?',
-      text: `Are you sure you want to delete ${student.user?.fullName || student.fullName}? This action cannot be undone.`,
+      text: `Are you sure you want to delete ${student.user?.fullName || student.fullName}?`,
       icon: 'warning',
       showCancelButton: true,
       confirmButtonColor: '#e74c3c',
-      confirmButtonText: 'Yes, Delete',
-      cancelButtonText: 'Cancel'
+      confirmButtonText: 'Delete'
     });
     
     if (result.isConfirmed) {
       const token = getToken();
-      try {
-        const response = await fetch(`${API_URL}/teacher/students/${student._id}`, {
-          method: 'DELETE',
-          headers: {
-            'Authorization': `Bearer ${token}`
-          }
-        });
-        
-        if (response.ok) {
-          Swal.fire('Deleted!', 'Student has been removed successfully.', 'success');
-          fetchData();
-        } else {
-          const error = await response.json();
-          Swal.fire('Error', error.message || 'Failed to delete student', 'error');
-        }
-      } catch (error) {
-        Swal.fire('Error', 'Network error. Please try again.', 'error');
+      const response = await fetch(`${API_URL}/teacher/students/${student._id}`, {
+        method: 'DELETE',
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      
+      if (response.ok) {
+        Swal.fire('Deleted!', 'Student removed', 'success');
+        fetchData();
+      } else {
+        Swal.fire('Error', 'Failed to delete student', 'error');
       }
     }
-  };
-
-  // View Credentials
-  const handleViewCredentials = (student) => {
-    Swal.fire({
-      title: `${student.user?.fullName || student.fullName}'s Credentials`,
-      html: `
-        <div style="text-align:left">
-          <p><strong>Email:</strong> ${student.user?.email || student.email}</p>
-          <p><strong>Default Password:</strong> student123</p>
-          <p><strong>Student ID:</strong> ${student.studentId}</p>
-          <p><strong>Login URL:</strong> ${window.location.origin}/portal/login</p>
-        </div>
-      `,
-      icon: 'info',
-      confirmButtonText: 'Print',
-      showCancelButton: true
-    }).then((result) => {
-      if (result.isConfirmed) {
-        const printWindow = window.open('', '_blank');
-        printWindow.document.write(`
-          <html><head><title>Student Credentials</title>
-          <style>body{font-family:Arial;padding:40px}</style></head>
-          <body>
-            <h1>ESSA Nyarugunga School</h1>
-            <h3>Student Login Credentials</h3>
-            <p><strong>Name:</strong> ${student.user?.fullName || student.fullName}</p>
-            <p><strong>Email:</strong> ${student.user?.email || student.email}</p>
-            <p><strong>Password:</strong> student123</p>
-            <p><strong>Login URL:</strong> ${window.location.origin}/portal/login</p>
-          </body></html>
-        `);
-        printWindow.document.close();
-        printWindow.print();
-      }
-    });
   };
 
   // Reset Password
@@ -439,368 +278,35 @@ const TeacherDashboard = () => {
     
     if (newPassword) {
       const token = getToken();
-      try {
-        const response = await fetch(`${API_URL}/teacher/students/${student._id}/reset-password`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-          body: JSON.stringify({ newPassword })
-        });
-        
-        if (response.ok) {
-          Swal.fire('Success!', 'Password has been reset.', 'success');
-        } else {
-          Swal.fire('Error', 'Failed to reset password', 'error');
-        }
-      } catch (error) {
-        Swal.fire('Error', 'Network error', 'error');
+      const response = await fetch(`${API_URL}/teacher/students/${student._id}/reset-password`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+        body: JSON.stringify({ newPassword })
+      });
+      
+      if (response.ok) {
+        Swal.fire('Success!', 'Password has been reset.', 'success');
+      } else {
+        Swal.fire('Error', 'Failed to reset password', 'error');
       }
     }
   };
 
-  // Request Permission - Fixed Version
-const handleRequestPermission = async () => {
-  const { value: formValues } = await Swal.fire({
-    title: 'Request Permission',
-    html: `
-      <div style="text-align: left; margin-bottom: 10px;">
-        <label style="font-weight: bold;">Permission Type</label>
-        <select id="type" class="swal2-select" style="width: 100%; padding: 8px; margin-top: 5px;">
-          <option value="leave">Leave Request</option>
-          <option value="early_dismissal">Early Dismissal</option>
-          <option value="sports">Sports Event</option>
-          <option value="event">School Event</option>
-          <option value="other">Other</option>
-        </select>
-      </div>
-      <div style="text-align: left; margin-bottom: 10px;">
-        <label style="font-weight: bold;">Reason for Permission</label>
-        <textarea id="reason" class="swal2-textarea" placeholder="Please provide detailed reason..." style="width: 100%; padding: 8px; margin-top: 5px;" required></textarea>
-      </div>
-      <div style="text-align: left; margin-bottom: 10px;">
-        <label style="font-weight: bold;">From Date</label>
-        <input type="date" id="fromDate" class="swal2-input" style="width: 100%; padding: 8px; margin-top: 5px;" required>
-      </div>
-      <div style="text-align: left; margin-bottom: 10px;">
-        <label style="font-weight: bold;">To Date</label>
-        <input type="date" id="toDate" class="swal2-input" style="width: 100%; padding: 8px; margin-top: 5px;" required>
-      </div>
-    `,
-    confirmButtonText: 'Submit Request',
-    confirmButtonColor: '#27ae60',
-    showCancelButton: true,
-    width: '500px',
-    preConfirm: () => {
-      const type = document.getElementById('type').value;
-      const reason = document.getElementById('reason').value;
-      const fromDate = document.getElementById('fromDate').value;
-      const toDate = document.getElementById('toDate').value;
-      
-      if (!type || !reason || !fromDate || !toDate) {
-        Swal.showValidationMessage('Please fill all fields');
-        return false;
-      }
-      
-      if (new Date(fromDate) > new Date(toDate)) {
-        Swal.showValidationMessage('From date cannot be after To date');
-        return false;
-      }
-      
-      return { type, reason, fromDate, toDate };
-    }
-  });
-
-  if (formValues) {
-    const token = getToken();
-    try {
-      const response = await fetch(`${API_URL}/teacher/permissions`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
-        },
-        body: JSON.stringify({
-          type: formValues.type,
-          reason: formValues.reason,
-          fromDate: formValues.fromDate,
-          toDate: formValues.toDate
-        })
-      });
-      
-      const data = await response.json();
-      
-      if (response.ok) {
-        Swal.fire({
-          title: 'Request Submitted!',
-          text: 'Your permission request has been sent to Discipline Admin.',
-          icon: 'success',
-          confirmButtonColor: '#27ae60'
-        });
-      } else {
-        Swal.fire({
-          title: 'Error',
-          text: data.message || 'Failed to submit request',
-          icon: 'error',
-          confirmButtonColor: '#e74c3c'
-        });
-      }
-    } catch (error) {
-      console.error('Error submitting permission:', error);
-      Swal.fire({
-        title: 'Error',
-        text: 'Network error. Please try again.',
-        icon: 'error',
-        confirmButtonColor: '#e74c3c'
-      });
-    }
-  }
-};
-  // Report Misconduct - Fixed Version
-const handleReportMisconduct = async () => {
-  if (students.length === 0) {
-    Swal.fire('No Students', 'No students available to report', 'warning');
-    return;
-  }
-  
-  const { value: formValues } = await Swal.fire({
-    title: 'Report Student Misconduct',
-    html: `
-      <div style="text-align: left; margin-bottom: 10px;">
-        <label style="font-weight: bold;">Select Student</label>
-        <select id="studentId" class="swal2-select" style="width: 100%; padding: 8px; margin-top: 5px;" required>
-          <option value="">-- Select Student --</option>
-          ${students.map(s => `<option value="${s._id}">${s.user?.fullName || s.fullName} (${s.studentId})</option>`).join('')}
-        </select>
-      </div>
-      <div style="text-align: left; margin-bottom: 10px;">
-        <label style="font-weight: bold;">Violation Category</label>
-        <select id="category" class="swal2-select" style="width: 100%; padding: 8px; margin-top: 5px;">
-          <option value="Late">Late to Class</option>
-          <option value="Misbehavior">Misbehavior / Disruptive</option>
-          <option value="Uniform Violation">Uniform Violation</option>
-          <option value="Academic Dishonesty">Academic Dishonesty</option>
-          <option value="Fighting">Fighting / Physical Altercation</option>
-          <option value="Other">Other</option>
-        </select>
-      </div>
-      <div style="text-align: left; margin-bottom: 10px;">
-        <label style="font-weight: bold;">Description of Incident</label>
-        <textarea id="description" class="swal2-textarea" placeholder="Please describe what happened in detail..." style="width: 100%; padding: 8px; margin-top: 5px;" required></textarea>
-      </div>
-      <div style="text-align: left; margin-bottom: 10px;">
-        <label style="font-weight: bold;">Date of Incident</label>
-        <input type="date" id="incidentDate" class="swal2-input" value="${new Date().toISOString().split('T')[0]}" style="width: 100%; padding: 8px; margin-top: 5px;" required>
-      </div>
-    `,
-    confirmButtonText: 'Report Incident',
-    confirmButtonColor: '#e74c3c',
-    showCancelButton: true,
-    width: '550px',
-    preConfirm: () => {
-      const studentId = document.getElementById('studentId').value;
-      const category = document.getElementById('category').value;
-      const description = document.getElementById('description').value;
-      const incidentDate = document.getElementById('incidentDate').value;
-      
-      if (!studentId) {
-        Swal.showValidationMessage('Please select a student');
-        return false;
-      }
-      if (!description) {
-        Swal.showValidationMessage('Please provide a description of the incident');
-        return false;
-      }
-      if (!incidentDate) {
-        Swal.showValidationMessage('Please select the incident date');
-        return false;
-      }
-      
-      return { studentId, category, description, incidentDate };
-    }
-  });
-
-  if (formValues) {
-    const token = getToken();
-    try {
-      const response = await fetch(`${API_URL}/teacher/discipline`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
-        },
-        body: JSON.stringify({
-          studentId: formValues.studentId,
-          category: formValues.category,
-          description: formValues.description,
-          incidentDate: formValues.incidentDate
-        })
-      });
-      
-      const data = await response.json();
-      
-      if (response.ok) {
-        Swal.fire({
-          title: 'Report Submitted!',
-          text: 'The discipline case has been reported to Discipline Admin.',
-          icon: 'success',
-          confirmButtonColor: '#27ae60'
-        });
-      } else {
-        Swal.fire({
-          title: 'Error',
-          text: data.message || 'Failed to submit report',
-          icon: 'error',
-          confirmButtonColor: '#e74c3c'
-        });
-      }
-    } catch (error) {
-      console.error('Error submitting discipline report:', error);
-      Swal.fire({
-        title: 'Error',
-        text: 'Network error. Please try again.',
-        icon: 'error',
-        confirmButtonColor: '#e74c3c'
-      });
-    }
-  }
-};
-  // Create Assignment
-  const handleCreateAssignment = async () => {
-    if (classes.length === 0) {
-      Swal.fire('No Classes', 'Please create a class first', 'warning');
-      return;
-    }
-    
-    const { value: formValues } = await Swal.fire({
-      title: 'Create Assignment',
+  // View Credentials
+  const handleViewCredentials = (student) => {
+    Swal.fire({
+      title: `${student.user?.fullName || student.fullName}'s Credentials`,
       html: `
-        <input type="text" id="title" class="swal2-input" placeholder="Title" required>
-        <textarea id="description" class="swal2-textarea" placeholder="Description" required></textarea>
-        <input type="text" id="subject" class="swal2-input" placeholder="Subject" required>
-        <select id="classId" class="swal2-select" required>
-          <option value="">Select Class</option>
-          ${classes.map(c => `<option value="${c._id}">${c.grade} ${c.className}</option>`).join('')}
-        </select>
-        <input type="date" id="dueDate" class="swal2-input" required>
+        <div style="text-align:left">
+          <p><strong>Email:</strong> ${student.user?.email || student.email}</p>
+          <p><strong>Default Password:</strong> student123</p>
+          <p><strong>Student ID:</strong> ${student.studentId}</p>
+          <p><strong>Login URL:</strong> ${window.location.origin}/portal/login</p>
+        </div>
       `,
-      confirmButtonText: 'Create Assignment',
-      confirmButtonColor: '#3498db',
-      showCancelButton: true,
-      preConfirm: () => {
-        const title = document.getElementById('title').value;
-        const description = document.getElementById('description').value;
-        const subject = document.getElementById('subject').value;
-        const classId = document.getElementById('classId').value;
-        const dueDate = document.getElementById('dueDate').value;
-        
-        if (!title || !description || !subject || !classId || !dueDate) {
-          Swal.showValidationMessage('Please fill all fields');
-          return false;
-        }
-        return { title, description, subject, classId, dueDate, totalPoints: 100 };
-      }
+      icon: 'info',
+      confirmButtonText: 'OK'
     });
-
-    if (formValues) {
-      const token = getToken();
-      const response = await fetch(`${API_URL}/teacher/assignments`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
-        },
-        body: JSON.stringify(formValues)
-      });
-      
-      if (response.ok) {
-        Swal.fire('Success!', 'Assignment created successfully', 'success');
-        fetchData();
-      } else {
-        Swal.fire('Error', 'Failed to create assignment', 'error');
-      }
-    }
-  };
-
-  // Mark Attendance
-  const handleMarkAttendance = async () => {
-    if (classes.length === 0) {
-      Swal.fire('No Classes', 'Please create a class first', 'warning');
-      return;
-    }
-    
-    const { value: formValues } = await Swal.fire({
-      title: 'Mark Attendance',
-      html: `
-        <select id="classId" class="swal2-select" required>
-          <option value="">Select Class</option>
-          ${classes.map(c => `<option value="${c._id}">${c.grade} ${c.className}</option>`).join('')}
-        </select>
-        <input type="date" id="date" class="swal2-input" value="${new Date().toISOString().split('T')[0]}" required>
-        <div id="students-list" style="max-height: 300px; overflow-y: auto; margin-top: 10px;"></div>
-      `,
-      confirmButtonText: 'Save Attendance',
-      confirmButtonColor: '#27ae60',
-      showCancelButton: true,
-      width: '600px',
-      didOpen: () => {
-        const classSelect = document.getElementById('classId');
-        const studentsDiv = document.getElementById('students-list');
-        
-        classSelect.addEventListener('change', async () => {
-          const classId = classSelect.value;
-          if (classId) {
-            const classStudents = students.filter(s => s.classId === classId);
-            studentsDiv.innerHTML = classStudents.map(s => `
-              <div style="display: flex; justify-content: space-between; align-items: center; padding: 8px; border-bottom: 1px solid #eee;">
-                <span>${s.user?.fullName || s.fullName}</span>
-                <select id="attendance-${s._id}" style="padding: 4px 8px;">
-                  <option value="Present">Present</option>
-                  <option value="Absent">Absent</option>
-                  <option value="Late">Late</option>
-                </select>
-              </div>
-            `).join('');
-          }
-        });
-      },
-      preConfirm: () => {
-        const classId = document.getElementById('classId').value;
-        const date = document.getElementById('date').value;
-        if (!classId || !date) {
-          Swal.showValidationMessage('Please select class and date');
-          return false;
-        }
-        
-        const studentDivs = document.querySelectorAll('#students-list div');
-        const records = [];
-        studentDivs.forEach(div => {
-          const select = div.querySelector('select');
-          const studentId = select.id.replace('attendance-', '');
-          const status = select.value;
-          records.push({ studentId, status });
-        });
-        
-        return { classId, date, records };
-      }
-    });
-
-    if (formValues) {
-      const token = getToken();
-      const response = await fetch(`${API_URL}/teacher/attendance`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
-        },
-        body: JSON.stringify(formValues)
-      });
-      
-      if (response.ok) {
-        Swal.fire('Success!', 'Attendance marked successfully', 'success');
-        fetchData();
-      } else {
-        Swal.fire('Error', 'Failed to mark attendance', 'error');
-      }
-    }
   };
 
   const handleLogout = () => {
@@ -810,13 +316,9 @@ const handleReportMisconduct = async () => {
 
   const menuItems = [
     { id: 'overview', label: 'Overview', icon: 'fas fa-chart-line', color: '#3498db' },
-    { id: 'classes', label: 'Classes', icon: 'fas fa-chalkboard', color: '#27ae60' },
     { id: 'students', label: 'Students', icon: 'fas fa-users', color: '#9b59b6' },
+    { id: 'classes', label: 'Classes', icon: 'fas fa-school', color: '#27ae60' },
     { id: 'assignments', label: 'Assignments', icon: 'fas fa-tasks', color: '#f39c12' },
-    { id: 'attendance', label: 'Attendance', icon: 'fas fa-clock', color: '#e74c3c' },
-    { id: 'permissions', label: 'Permissions', icon: 'fas fa-file-alt', color: '#1abc9c' },
-    { id: 'discipline', label: 'Report', icon: 'fas fa-gavel', color: '#e74c3c' },
-    { id: 'chat', label: 'Messages', icon: 'fas fa-comments', color: '#1abc9c' },
     { id: 'profile', label: 'Profile', icon: 'fas fa-user-circle', color: '#34495e' }
   ];
 
@@ -824,87 +326,65 @@ const handleReportMisconduct = async () => {
 
   if (loading) {
     return (
-      <div className="loading-container" style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh', background: '#f0f4f8' }}>
+      <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh', background: '#f0f4f8' }}>
         <i className="fas fa-spinner fa-spin" style={{ fontSize: '3rem', color: '#1a3a5c' }}></i>
-        <p style={{ marginLeft: '10px', color: '#666' }}>Loading dashboard...</p>
+        <p style={{ marginLeft: '10px' }}>Loading dashboard...</p>
       </div>
     );
   }
 
   return (
-    <div className="teacher-dashboard" style={{ display: 'flex', minHeight: '100vh', background: '#f0f4f8' }}>
+    <div style={{ display: 'flex', minHeight: '100vh', background: '#f0f4f8' }}>
       {/* Mobile Overlay */}
       {mobileMenuOpen && (
-        <div 
-          onClick={() => setMobileMenuOpen(false)} 
-          className="mobile-overlay"
-          style={{
-            position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
-            background: 'rgba(0,0,0,0.5)', zIndex: 998
-          }}
-        />
+        <div onClick={() => setMobileMenuOpen(false)} style={{
+          position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
+          background: 'rgba(0,0,0,0.5)', zIndex: 998
+        }} />
       )}
 
       {/* Sidebar */}
-      <aside className="sidebar" style={{
+      <aside style={{
         width: isMobile ? (mobileMenuOpen ? sidebarWidth : '0px') : sidebarWidth,
         background: '#1a3a5c', color: 'white', position: 'fixed', left: 0, top: 0, bottom: 0,
         transition: 'width 0.3s ease', overflow: 'hidden', display: 'flex',
         flexDirection: 'column', zIndex: 999, boxShadow: '2px 0 10px rgba(0,0,0,0.1)'
       }}>
-        <div className="sidebar-header" style={{ padding: sidebarCollapsed ? '1rem 0' : '1.5rem', textAlign: 'center', borderBottom: '1px solid rgba(255,255,255,0.1)', position: 'relative' }}>
+        <div style={{ padding: sidebarCollapsed ? '1rem 0' : '1.5rem', textAlign: 'center', borderBottom: '1px solid rgba(255,255,255,0.1)' }}>
           {!sidebarCollapsed && (
             <>
-              <div className="sidebar-avatar" style={{ width: '60px', height: '60px', background: '#ffc107', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 1rem' }}>
+              <div style={{ width: '60px', height: '60px', background: '#ffc107', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 1rem' }}>
                 <i className="fas fa-chalkboard-user" style={{ fontSize: '2rem', color: '#1a3a5c' }}></i>
               </div>
-              <h3 style={{ fontSize: '0.9rem', margin: 0 }}>{userName}</h3>
-              <p style={{ fontSize: '0.7rem', opacity: 0.8, margin: '5px 0 0' }}>Teacher</p>
+              <h3>{userName}</h3>
+              <p style={{ fontSize: '0.7rem', opacity: 0.8 }}>Teacher</p>
             </>
           )}
-          {sidebarCollapsed && (
-            <div className="sidebar-avatar-collapsed" style={{ width: '50px', height: '50px', background: '#ffc107', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto' }}>
-              <i className="fas fa-chalkboard-user" style={{ fontSize: '1.5rem', color: '#1a3a5c' }}></i>
-            </div>
-          )}
-          <button 
-            onClick={() => setSidebarCollapsed(!sidebarCollapsed)} 
-            className="collapse-btn"
-            style={{
-              position: 'absolute', bottom: '-12px', right: '-12px', width: '24px', height: '24px',
-              background: '#ffc107', border: 'none', borderRadius: '50%', cursor: 'pointer', color: '#1a3a5c'
-            }}
-          >
+          <button onClick={() => setSidebarCollapsed(!sidebarCollapsed)} style={{
+            position: 'absolute', bottom: '-12px', right: '-12px', width: '24px', height: '24px',
+            background: '#ffc107', border: 'none', borderRadius: '50%', cursor: 'pointer', color: '#1a3a5c'
+          }}>
             <i className={`fas fa-chevron-${sidebarCollapsed ? 'right' : 'left'}`}></i>
           </button>
         </div>
 
-        <nav className="sidebar-nav" style={{ flex: 1, padding: '1rem 0', overflowY: 'auto' }}>
+        <nav style={{ flex: 1, padding: '1rem 0', overflowY: 'auto' }}>
           {menuItems.map((item) => (
-            <button 
-              key={item.id} 
-              onClick={() => { setActiveTab(item.id); if (isMobile) setMobileMenuOpen(false); }}
-              className={`nav-item ${activeTab === item.id ? 'active' : ''}`}
+            <button key={item.id} onClick={() => { setActiveTab(item.id); if (isMobile) setMobileMenuOpen(false); }}
               style={{
                 display: 'flex', alignItems: 'center', justifyContent: sidebarCollapsed ? 'center' : 'flex-start',
                 gap: '12px', width: '100%', padding: sidebarCollapsed ? '12px' : '12px 20px',
                 background: activeTab === item.id ? 'rgba(255,255,255,0.1)' : 'transparent',
                 border: 'none', color: 'white', cursor: 'pointer', fontSize: '0.9rem', whiteSpace: 'nowrap'
-              }}
-            >
+              }}>
               <i className={item.icon} style={{ width: '20px', color: item.color }}></i>
               {!sidebarCollapsed && <span>{item.label}</span>}
-              {item.id === 'chat' && unreadCount > 0 && !sidebarCollapsed && (
-                <span className="unread-badge" style={{ marginLeft: 'auto', background: '#e74c3c', borderRadius: '50%', padding: '2px 6px', fontSize: '10px' }}>
-                  {unreadCount}
-                </span>
-              )}
             </button>
           ))}
         </nav>
 
-        <div className="sidebar-footer" style={{ padding: '1rem', borderTop: '1px solid rgba(255,255,255,0.1)' }}>
-          <button onClick={handleLogout} className="logout-btn" style={{
+        <div style={{ padding: '1rem', borderTop: '1px solid rgba(255,255,255,0.1)' }}>
+          <button onClick={handleLogout} style={{
             display: 'flex', alignItems: 'center', justifyContent: sidebarCollapsed ? 'center' : 'flex-start',
             gap: '12px', width: '100%', padding: '12px', background: '#e74c3c',
             border: 'none', borderRadius: '8px', color: 'white', cursor: 'pointer'
@@ -916,131 +396,84 @@ const handleReportMisconduct = async () => {
       </aside>
 
       {/* Main Content */}
-      <main className="main-content" style={{
+      <main style={{
         flex: 1, marginLeft: isMobile ? '0' : sidebarWidth,
         transition: 'margin-left 0.3s ease', padding: '20px', width: '100%', overflowX: 'auto'
       }}>
-        {/* Top Navbar */}
-        <div className="top-navbar" style={{
+        {/* Top Bar */}
+        <div style={{
           background: 'white', padding: '10px 15px', borderRadius: '12px',
           display: 'flex', justifyContent: 'space-between', alignItems: 'center',
           marginBottom: '20px', flexWrap: 'wrap', gap: '10px'
         }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-            <button 
-              onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-              className="mobile-menu-btn"
-              style={{ background: '#1a3a5c', color: 'white', border: 'none', padding: '8px 12px', borderRadius: '8px', cursor: 'pointer', display: isMobile ? 'block' : 'none' }}
-            >
+            <button onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+              style={{ background: '#1a3a5c', color: 'white', border: 'none', padding: '8px 12px', borderRadius: '8px', cursor: 'pointer', display: isMobile ? 'block' : 'none' }}>
               <i className="fas fa-bars"></i>
             </button>
-            <h2 style={{ color: '#1a3a5c', fontSize: '1.2rem', margin: 0 }}>
-              {menuItems.find(i => i.id === activeTab)?.label} Dashboard
-            </h2>
+            <h2 style={{ color: '#1a3a5c', margin: 0 }}>Teacher Dashboard</h2>
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-            <div className="user-avatar" style={{ width: '35px', height: '35px', background: '#1a3a5c', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'white' }}>
+            <div style={{ width: '35px', height: '35px', background: '#1a3a5c', borderRadius: '8px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'white' }}>
               <i className="fas fa-chalkboard-user"></i>
             </div>
             <div>
-              <div style={{ fontWeight: '600', fontSize: '0.9rem' }}>{userName}</div>
+              <div style={{ fontWeight: '600' }}>{userName}</div>
               <div style={{ fontSize: '0.7rem', color: '#ffc107' }}>Teacher</div>
             </div>
           </div>
         </div>
 
-        <h1 style={{ color: '#1a3a5c', fontSize: isMobile ? '1.5rem' : '2rem', marginBottom: '20px' }}>Welcome, {userName}! 👋</h1>
-        
+        <h1 style={{ color: '#1a3a5c', marginBottom: '20px' }}>Welcome, {userName}! 👋</h1>
+
         {/* Overview Tab */}
         {activeTab === 'overview' && (
-          <div className="overview-tab">
-            <div className="stats-grid" style={{ display: 'grid', gridTemplateColumns: `repeat(auto-fit, minmax(150px, 1fr))`, gap: '1rem', marginBottom: '20px' }}>
-              <div className="stat-card" style={{ background: 'white', padding: '1rem', borderRadius: '12px', textAlign: 'center' }}>
-                <h3 style={{ margin: 0, fontSize: '1.8rem', color: '#1a3a5c' }}>{students.length}</h3>
-                <p style={{ margin: '5px 0', color: '#666' }}>Students</p>
-                <button onClick={() => setActiveTab('students')} style={{ background: '#3498db', color: 'white', border: 'none', padding: '5px 10px', borderRadius: '5px', cursor: 'pointer', marginTop: '5px' }}>View</button>
+          <div>
+            <div style={{ display: 'grid', gridTemplateColumns: `repeat(auto-fit, minmax(150px, 1fr))`, gap: '1rem', marginBottom: '20px' }}>
+              <div style={{ background: 'white', padding: '1rem', borderRadius: '12px', textAlign: 'center' }}>
+                <i className="fas fa-users" style={{ fontSize: '2rem', color: '#3498db' }}></i>
+                <h3>{students.length}</h3>
+                <p>Students</p>
               </div>
-              <div className="stat-card" style={{ background: 'white', padding: '1rem', borderRadius: '12px', textAlign: 'center' }}>
-                <h3 style={{ margin: 0, fontSize: '1.8rem', color: '#1a3a5c' }}>{classes.length}</h3>
-                <p style={{ margin: '5px 0', color: '#666' }}>Classes</p>
-                <button onClick={() => setActiveTab('classes')} style={{ background: '#27ae60', color: 'white', border: 'none', padding: '5px 10px', borderRadius: '5px', cursor: 'pointer', marginTop: '5px' }}>View</button>
+              <div style={{ background: 'white', padding: '1rem', borderRadius: '12px', textAlign: 'center' }}>
+                <i className="fas fa-school" style={{ fontSize: '2rem', color: '#27ae60' }}></i>
+                <h3>{classes.length}</h3>
+                <p>Classes</p>
               </div>
-              <div className="stat-card" style={{ background: 'white', padding: '1rem', borderRadius: '12px', textAlign: 'center' }}>
-                <h3 style={{ margin: 0, fontSize: '1.8rem', color: '#1a3a5c' }}>{assignments.length}</h3>
-                <p style={{ margin: '5px 0', color: '#666' }}>Assignments</p>
-                <button onClick={() => setActiveTab('assignments')} style={{ background: '#f39c12', color: 'white', border: 'none', padding: '5px 10px', borderRadius: '5px', cursor: 'pointer', marginTop: '5px' }}>View</button>
+              <div style={{ background: 'white', padding: '1rem', borderRadius: '12px', textAlign: 'center' }}>
+                <i className="fas fa-tasks" style={{ fontSize: '2rem', color: '#f39c12' }}></i>
+                <h3>{assignments.length}</h3>
+                <p>Assignments</p>
               </div>
             </div>
-            
-            <div className="action-buttons" style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
-              <button onClick={handleCreateClass} className="btn btn-success" style={{ background: '#27ae60', color: 'white', border: 'none', padding: '10px 15px', borderRadius: '8px', cursor: 'pointer' }}>
+
+            <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
+              <button onClick={handleCreateClass} style={{ background: '#27ae60', color: 'white', border: 'none', padding: '10px 16px', borderRadius: '8px', cursor: 'pointer' }}>
                 <i className="fas fa-plus"></i> Create Class
               </button>
-              <button onClick={handleCreateStudent} className="btn btn-primary" style={{ background: '#3498db', color: 'white', border: 'none', padding: '10px 15px', borderRadius: '8px', cursor: 'pointer' }}>
+              <button onClick={handleCreateStudent} style={{ background: '#3498db', color: 'white', border: 'none', padding: '10px 16px', borderRadius: '8px', cursor: 'pointer' }}>
                 <i className="fas fa-user-plus"></i> Add Student
               </button>
-              <button onClick={handleRequestPermission} className="btn btn-info" style={{ background: '#1abc9c', color: 'white', border: 'none', padding: '10px 15px', borderRadius: '8px', cursor: 'pointer' }}>
-                <i className="fas fa-file-alt"></i> Request Permission
-              </button>
-              <button onClick={handleReportMisconduct} className="btn btn-danger" style={{ background: '#e74c3c', color: 'white', border: 'none', padding: '10px 15px', borderRadius: '8px', cursor: 'pointer' }}>
-                <i className="fas fa-gavel"></i> Report Misconduct
-              </button>
             </div>
           </div>
         )}
 
-        {/* Classes Tab */}
-        {activeTab === 'classes' && (
-          <div className="classes-tab" style={{ background: 'white', borderRadius: '12px', padding: '1rem', overflowX: 'auto' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', flexWrap: 'wrap', gap: '10px', marginBottom: '1rem' }}>
-              <h2 style={{ margin: 0 }}>My Classes</h2>
-              <button onClick={handleCreateClass} style={{ background: '#27ae60', color: 'white', border: 'none', padding: '8px 16px', borderRadius: '6px', cursor: 'pointer' }}>
-                <i className="fas fa-plus"></i> New Class
-              </button>
-            </div>
-            {classes.length === 0 ? (
-              <p style={{ textAlign: 'center', color: '#666', padding: '40px' }}>No classes created yet. Click "New Class" to create one.</p>
-            ) : (
-              <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: '400px' }}>
-                <thead>
-                  <tr style={{ background: '#1a3a5c', color: 'white' }}>
-                    <th style={{ padding: '12px', textAlign: 'left' }}>Grade</th>
-                    <th style={{ padding: '12px', textAlign: 'left' }}>Class Name</th>
-                    <th style={{ padding: '12px', textAlign: 'left' }}>Academic Year</th>
-                    <th style={{ padding: '12px', textAlign: 'left' }}>Students</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {classes.map(c => (
-                    <tr key={c._id} style={{ borderBottom: '1px solid #e0e0e0' }}>
-                      <td style={{ padding: '12px' }}>{c.grade}</td>
-                      <td style={{ padding: '12px' }}>{c.className}</td>
-                      <td style={{ padding: '12px' }}>{c.academicYear}</td>
-                      <td style={{ padding: '12px' }}>{c.students?.length || 0}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            )}
-          </div>
-        )}
-
-        {/* Students Tab with CRUD Operations */}
+        {/* Students Tab */}
         {activeTab === 'students' && (
-          <div className="students-tab" style={{ background: 'white', borderRadius: '12px', padding: '1rem', overflowX: 'auto' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', flexWrap: 'wrap', gap: '10px', marginBottom: '1rem' }}>
-              <h2 style={{ margin: 0 }}>My Students</h2>
+          <div style={{ background: 'white', borderRadius: '12px', padding: '1rem', overflowX: 'auto' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '1rem', flexWrap: 'wrap', gap: '10px' }}>
+              <h2>My Students</h2>
               <button onClick={handleCreateStudent} style={{ background: '#27ae60', color: 'white', border: 'none', padding: '8px 16px', borderRadius: '6px', cursor: 'pointer' }}>
                 <i className="fas fa-plus"></i> Add Student
               </button>
             </div>
             {students.length === 0 ? (
-              <p style={{ textAlign: 'center', color: '#666', padding: '40px' }}>No students added yet. Click "Add Student" to create one.</p>
+              <p style={{ textAlign: 'center', padding: '40px', color: '#666' }}>No students yet. Click "Add Student" to create one.</p>
             ) : (
-              <table style={{ minWidth: '700px', width: '100%', borderCollapse: 'collapse' }}>
+              <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: '600px' }}>
                 <thead>
                   <tr style={{ background: '#1a3a5c', color: 'white' }}>
-                    <th style={{ padding: '10px' }}>ID</th>
+                    <th style={{ padding: '10px' }}>Student ID</th>
                     <th style={{ padding: '10px' }}>Name</th>
                     <th style={{ padding: '10px' }}>Email</th>
                     <th style={{ padding: '10px' }}>Class</th>
@@ -1061,10 +494,7 @@ const handleReportMisconduct = async () => {
                             <button onClick={() => handleViewCredentials(s)} style={{ background: '#3498db', color: 'white', border: 'none', padding: '4px 8px', borderRadius: '4px', cursor: 'pointer', fontSize: '0.7rem' }} title="Credentials">
                               <i className="fas fa-key"></i>
                             </button>
-                            <button onClick={() => handleEditStudent(s)} style={{ background: '#f39c12', color: 'white', border: 'none', padding: '4px 8px', borderRadius: '4px', cursor: 'pointer', fontSize: '0.7rem' }} title="Edit">
-                              <i className="fas fa-edit"></i>
-                            </button>
-                            <button onClick={() => handleResetPassword(s)} style={{ background: '#9b59b6', color: 'white', border: 'none', padding: '4px 8px', borderRadius: '4px', cursor: 'pointer', fontSize: '0.7rem' }} title="Reset Password">
+                            <button onClick={() => handleResetPassword(s)} style={{ background: '#f39c12', color: 'white', border: 'none', padding: '4px 8px', borderRadius: '4px', cursor: 'pointer', fontSize: '0.7rem' }} title="Reset Password">
                               <i className="fas fa-sync-alt"></i>
                             </button>
                             <button onClick={() => handleDeleteStudent(s)} style={{ background: '#e74c3c', color: 'white', border: 'none', padding: '4px 8px', borderRadius: '4px', cursor: 'pointer', fontSize: '0.7rem' }} title="Delete">
@@ -1081,136 +511,79 @@ const handleReportMisconduct = async () => {
           </div>
         )}
 
+        {/* Classes Tab */}
+        {activeTab === 'classes' && (
+          <div style={{ background: 'white', borderRadius: '12px', padding: '1rem', overflowX: 'auto' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '1rem' }}>
+              <h2>My Classes</h2>
+              <button onClick={handleCreateClass} style={{ background: '#27ae60', color: 'white', border: 'none', padding: '8px 16px', borderRadius: '6px', cursor: 'pointer' }}>
+                <i className="fas fa-plus"></i> Add Class
+              </button>
+            </div>
+            {classes.length === 0 ? (
+              <p>No classes created yet. Click "Add Class" to create one.</p>
+            ) : (
+              <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: '400px' }}>
+                <thead>
+                  <tr style={{ background: '#1a3a5c', color: 'white' }}>
+                    <th style={{ padding: '10px' }}>Grade</th>
+                    <th style={{ padding: '10px' }}>Class Name</th>
+                    <th style={{ padding: '10px' }}>Academic Year</th>
+                    <th style={{ padding: '10px' }}>Students</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {classes.map(c => (
+                    <tr key={c._id} style={{ borderBottom: '1px solid #e0e0e0' }}>
+                      <td style={{ padding: '10px' }}>{c.grade}</td>
+                      <td style={{ padding: '10px' }}>{c.className}</td>
+                      <td style={{ padding: '10px' }}>{c.academicYear}</td>
+                      <td style={{ padding: '10px' }}>{c.students?.length || 0}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
+          </div>
+        )}
+
         {/* Assignments Tab */}
         {activeTab === 'assignments' && (
-          <div className="assignments-tab" style={{ background: 'white', borderRadius: '12px', padding: '1rem' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', flexWrap: 'wrap', gap: '10px', marginBottom: '1rem' }}>
-              <h2 style={{ margin: 0 }}>Assignments</h2>
-              <button onClick={handleCreateAssignment} style={{ background: '#f39c12', color: 'white', border: 'none', padding: '8px 16px', borderRadius: '6px', cursor: 'pointer' }}>
-                <i className="fas fa-plus"></i> New Assignment
+          <div style={{ background: 'white', borderRadius: '12px', padding: '1rem' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '1rem' }}>
+              <h2>Assignments</h2>
+              <button onClick={() => setActiveTab('classes')} style={{ background: '#f39c12', color: 'white', border: 'none', padding: '8px 16px', borderRadius: '6px', cursor: 'pointer' }}>
+                <i className="fas fa-plus"></i> Create Assignment
               </button>
             </div>
             {assignments.length === 0 ? (
-              <p style={{ textAlign: 'center', color: '#666', padding: '40px' }}>No assignments created yet. Click "New Assignment" to create one.</p>
+              <p>No assignments yet. Create a class first.</p>
             ) : (
               assignments.map(a => (
-                <div key={a._id} style={{ padding: '1rem', borderBottom: '1px solid #e0e0e0', marginBottom: '0.5rem' }}>
-                  <h3 style={{ margin: '0 0 5px 0', color: '#1a3a5c' }}>{a.title}</h3>
-                  <p style={{ margin: '0 0 10px 0', color: '#666' }}>{a.description}</p>
-                  <p><strong>Subject:</strong> {a.subject}</p>
-                  <p><strong>Due Date:</strong> {new Date(a.dueDate).toLocaleDateString()}</p>
-                  <p><strong>Submissions:</strong> {a.submissions?.length || 0}</p>
+                <div key={a._id} style={{ padding: '1rem', borderBottom: '1px solid #e0e0e0' }}>
+                  <h3>{a.title}</h3>
+                  <p>{a.description}</p>
+                  <p><strong>Due:</strong> {new Date(a.dueDate).toLocaleDateString()}</p>
                 </div>
               ))
             )}
           </div>
         )}
 
-        {/* Attendance Tab */}
-        {activeTab === 'attendance' && (
-          <div className="attendance-tab" style={{ background: 'white', borderRadius: '12px', padding: '1rem', textAlign: 'center' }}>
-            <i className="fas fa-clock" style={{ fontSize: '3rem', color: '#e74c3c', marginBottom: '1rem' }}></i>
-            <h3>Attendance Management</h3>
-            <p>Mark student attendance for your classes</p>
-            <button onClick={handleMarkAttendance} style={{ background: '#e74c3c', color: 'white', border: 'none', padding: '10px 20px', borderRadius: '8px', cursor: 'pointer', marginTop: '10px' }}>
-              <i className="fas fa-calendar-check"></i> Mark Attendance
-            </button>
-          </div>
-        )}
-
-        {/* Permissions Tab */}
-        {activeTab === 'permissions' && (
-          <div className="permissions-tab" style={{ background: 'white', borderRadius: '12px', padding: '1rem', textAlign: 'center' }}>
-            <i className="fas fa-file-alt" style={{ fontSize: '3rem', color: '#1abc9c', marginBottom: '1rem' }}></i>
-            <h3>Request Permission</h3>
-            <p>Submit a permission request to the Discipline Admin</p>
-            <button onClick={handleRequestPermission} style={{ background: '#1abc9c', color: 'white', border: 'none', padding: '10px 20px', borderRadius: '8px', cursor: 'pointer', marginTop: '10px' }}>
-              <i className="fas fa-paper-plane"></i> Request Permission
-            </button>
-          </div>
-        )}
-
-        {/* Discipline Report Tab */}
-        {activeTab === 'discipline' && (
-          <div className="discipline-tab" style={{ background: 'white', borderRadius: '12px', padding: '1rem', textAlign: 'center' }}>
-            <i className="fas fa-gavel" style={{ fontSize: '3rem', color: '#e74c3c', marginBottom: '1rem' }}></i>
-            <h3>Report Student Misconduct</h3>
-            <p>Report any student behavioral issues to the Discipline Admin</p>
-            <button onClick={handleReportMisconduct} style={{ background: '#e74c3c', color: 'white', border: 'none', padding: '10px 20px', borderRadius: '8px', cursor: 'pointer', marginTop: '10px' }}>
-              <i className="fas fa-flag"></i> Report Incident
-            </button>
-          </div>
-        )}
-
-        {/* Chat Tab */}
-        {activeTab === 'chat' && (
-          <div className="chat-tab" style={{ background: 'white', borderRadius: '12px', overflow: 'hidden', display: 'flex', flexDirection: isMobile ? 'column' : 'row', height: isMobile ? 'auto' : '70vh' }}>
-            <div style={{ width: isMobile ? '100%' : '30%', borderRight: isMobile ? 'none' : '1px solid #e0e0e0', borderBottom: isMobile ? '1px solid #e0e0e0' : 'none', overflowY: 'auto', maxHeight: isMobile ? '200px' : 'auto' }}>
-              <div style={{ padding: '1rem', background: '#f8f9fa', borderBottom: '1px solid #e0e0e0' }}>
-                <h3 style={{ margin: 0 }}>Chats <span style={{ fontSize: '0.8rem', color: '#666' }}>({unreadCount} unread)</span></h3>
-              </div>
-              {users.map(user => (
-                <div 
-                  key={user._id} 
-                  onClick={() => { setSelectedUser(user); fetchMessages(user._id); }}
-                  style={{ 
-                    padding: '1rem', borderBottom: '1px solid #e0e0e0', cursor: 'pointer', 
-                    background: selectedUser?._id === user._id ? '#f0f4f8' : 'white'
-                  }}
-                >
-                  <div style={{ fontWeight: 'bold' }}>{user.fullName}</div>
-                  <div style={{ fontSize: '0.8rem', color: '#666' }}>{user.role}</div>
-                </div>
-              ))}
-            </div>
-            
-            <div style={{ width: isMobile ? '100%' : '70%', display: 'flex', flexDirection: 'column', height: isMobile ? '400px' : '100%' }}>
-              {selectedUser ? (
-                <>
-                  <div style={{ padding: '1rem', background: '#1a3a5c', color: 'white' }}>
-                    <h3 style={{ margin: 0 }}>{selectedUser.fullName}</h3>
-                  </div>
-                  <div style={{ flex: 1, overflowY: 'auto', padding: '1rem' }}>
-                    {messages.map(msg => (
-                      <div key={msg._id} style={{ textAlign: msg.senderId === localStorage.getItem('userId') ? 'right' : 'left', marginBottom: '1rem' }}>
-                        <div style={{ display: 'inline-block', maxWidth: '70%', padding: '0.5rem 1rem', borderRadius: '12px', background: msg.senderId === localStorage.getItem('userId') ? '#1a3a5c' : '#f0f4f8', color: msg.senderId === localStorage.getItem('userId') ? 'white' : '#333' }}>
-                          <div><strong>{msg.senderName}</strong></div>
-                          <div>{msg.content}</div>
-                          <div style={{ fontSize: '0.7rem', opacity: 0.7, marginTop: '4px' }}>{new Date(msg.createdAt).toLocaleTimeString()}</div>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                  <div style={{ padding: '1rem', borderTop: '1px solid #e0e0e0', display: 'flex', gap: '0.5rem' }}>
-                    <input 
-                      type="text" 
-                      value={messageText} 
-                      onChange={(e) => setMessageText(e.target.value)} 
-                      onKeyPress={(e) => e.key === 'Enter' && handleSendMessage()} 
-                      placeholder="Type a message..." 
-                      style={{ flex: 1, padding: '0.5rem', border: '1px solid #ddd', borderRadius: '8px' }} 
-                    />
-                    <button onClick={handleSendMessage} style={{ background: '#1a3a5c', color: 'white', border: 'none', padding: '0.5rem 1rem', borderRadius: '8px', cursor: 'pointer' }}>
-                      Send
-                    </button>
-                  </div>
-                </>
-              ) : (
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', color: '#666' }}>
-                  Select a user to start chatting
-                </div>
-              )}
-            </div>
-          </div>
-        )}
-
         {/* Profile Tab */}
         {activeTab === 'profile' && (
-          <div className="profile-tab" style={{ background: 'white', borderRadius: '12px', padding: '1rem' }}>
-            <h2 style={{ marginTop: 0, color: '#1a3a5c' }}>Profile Information</h2>
-            <p><strong>Name:</strong> {userName}</p>
-            <p><strong>Email:</strong> {localStorage.getItem('userEmail')}</p>
-            <p><strong>Role:</strong> Teacher</p>
+          <div style={{ background: 'white', borderRadius: '12px', padding: '1.5rem' }}>
+            <div style={{ textAlign: 'center', marginBottom: '1rem' }}>
+              <div style={{ width: '80px', height: '80px', background: '#ffc107', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto' }}>
+                <i className="fas fa-chalkboard-user" style={{ fontSize: '2rem', color: '#1a3a5c' }}></i>
+              </div>
+              <h2>{userName}</h2>
+              <p style={{ color: '#ffc107' }}>Teacher</p>
+            </div>
+            <div style={{ maxWidth: '400px', margin: '0 auto' }}>
+              <p><strong>Email:</strong> {userEmail}</p>
+              <p><strong>Role:</strong> Teacher</p>
+            </div>
           </div>
         )}
       </main>
