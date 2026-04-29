@@ -32,9 +32,14 @@ io.on('connection', (socket) => {
 });
 
 // ==================== MONGODB CONNECTION ====================
-mongoose.connect('mongodb://127.0.0.1:27017/essa_school')
-  .then(() => console.log('✅ MongoDB Connected'))
-  .catch(err => console.error('MongoDB Error:', err));
+mongoose.connect('mongodb://127.0.0.1:27017/essa_school', {
+  useNewUrlParser: true,
+  useUnifiedTopology: true,
+  serverSelectionTimeoutMS: 30000, // Increase timeout to 30 seconds
+  socketTimeoutMS: 45000,
+})
+.then(() => console.log('✅ MongoDB connected successfully'))
+.catch(err => console.error('MongoDB connection error:', err));
 
 // ==================== SCHEMAS ====================
 const userSchema = new mongoose.Schema({
