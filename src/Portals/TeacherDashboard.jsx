@@ -19,7 +19,6 @@ const TeacherDashboard = () => {
   const [messageText, setMessageText] = useState('');
   const [unreadCount, setUnreadCount] = useState(0);
   const [socket, setSocket] = useState(null);
-  const [editingStudent, setEditingStudent] = useState(null);
   const navigate = useNavigate();
 
   const API_URL = 'http://localhost:5000/api';
@@ -80,9 +79,18 @@ const TeacherDashboard = () => {
         fetch(`${API_URL}/teacher/assignments`, { headers: { 'Authorization': `Bearer ${token}` } })
       ]);
       
-      if (studentsRes.ok) setStudents(await studentsRes.json());
-      if (classesRes.ok) setClasses(await classesRes.json());
-      if (assignmentsRes.ok) setAssignments(await assignmentsRes.json());
+      if (studentsRes.ok) {
+        const data = await studentsRes.json();
+        setStudents(data);
+      }
+      if (classesRes.ok) {
+        const data = await classesRes.json();
+        setClasses(data);
+      }
+      if (assignmentsRes.ok) {
+        const data = await assignmentsRes.json();
+        setAssignments(data);
+      }
     } catch (error) {
       console.error('Error fetching data:', error);
     } finally {
@@ -96,7 +104,10 @@ const TeacherDashboard = () => {
       const response = await fetch(`${API_URL}/messages/users`, {
         headers: { 'Authorization': `Bearer ${token}` }
       });
-      if (response.ok) setUsers(await response.json());
+      if (response.ok) {
+        const data = await response.json();
+        setUsers(data);
+      }
     } catch (error) {
       console.error('Error fetching users:', error);
     }
@@ -123,7 +134,11 @@ const TeacherDashboard = () => {
       const response = await fetch(`${API_URL}/messages/user/${userId}`, {
         headers: { 'Authorization': `Bearer ${token}` }
       });
-      if (response.ok) setMessages(await response.json());
+      if (response.ok) {
+        const data = await response.json();
+        setMessages(data);
+        fetchUnreadCount();
+      }
     } catch (error) {
       console.error('Error fetching messages:', error);
     }
@@ -218,7 +233,7 @@ const TeacherDashboard = () => {
       html: `
         <input type="text" id="fullName" class="swal2-input" placeholder="Full Name *" required>
         <input type="email" id="email" class="swal2-input" placeholder="Email Address *" required>
-        <input type="password" id="password" class="swal2-input" placeholder="Password (auto-generated if empty)">
+        <input type="text" id="password" class="swal2-input" placeholder="Password (auto-generated if empty)">
         <input type="text" id="studentId" class="swal2-input" placeholder="Student ID *" required>
         <select id="classId" class="swal2-select" required>
           <option value="">Select Class *</option>
@@ -226,7 +241,6 @@ const TeacherDashboard = () => {
         </select>
         <input type="text" id="parentName" class="swal2-input" placeholder="Parent Name (Optional)">
         <input type="email" id="parentEmail" class="swal2-input" placeholder="Parent Email (Optional)">
-        <input type="tel" id="parentPhone" class="swal2-input" placeholder="Parent Phone (Optional)">
       `,
       confirmButtonText: 'Create Student',
       confirmButtonColor: '#27ae60',
@@ -248,8 +262,7 @@ const TeacherDashboard = () => {
           password: document.getElementById('password').value || `student${Math.floor(Math.random() * 10000)}`,
           studentId, classId,
           parentName: document.getElementById('parentName').value,
-          parentEmail: document.getElementById('parentEmail').value,
-          parentPhone: document.getElementById('parentPhone').value
+          parentEmail: document.getElementById('parentEmail').value
         };
       }
     });
@@ -283,98 +296,91 @@ const TeacherDashboard = () => {
     }
   };
 
- // Edit Student
-const handleEditStudent = async (student) => {
-  // Get current class for the student
-  const currentClass = classes.find(c => c._id === student.classId);
-  
-  const { value: formValues } = await Swal.fire({
-    title: 'Edit Student',
-    html: `
-      <input type="text" id="fullName" class="swal2-input" value="${student.user?.fullName || student.fullName}" required>
-      <input type="email" id="email" class="swal2-input" value="${student.user?.email || student.email}" required>
-      <select id="classId" class="swal2-select" required>
-        <option value="">Select Class</option>
-        ${classes.map(c => `<option value="${c._id}" ${student.classId === c._id ? 'selected' : ''}>${c.grade} ${c.className}</option>`).join('')}
-      </select>
-    `,
-    confirmButtonText: 'Update Student',
-    confirmButtonColor: '#3498db',
-    showCancelButton: true,
-    preConfirm: () => {
-      const fullName = document.getElementById('fullName').value;
-      const email = document.getElementById('email').value;
-      const classId = document.getElementById('classId').value;
-      if (!fullName || !email || !classId) {
-        Swal.showValidationMessage('Please fill required fields');
-        return false;
+  // Edit Student
+  const handleEditStudent = async (student) => {
+    const { value: formValues } = await Swal.fire({
+      title: 'Edit Student',
+      html: `
+        <input type="text" id="fullName" class="swal2-input" value="${student.user?.fullName || student.fullName}" required>
+        <input type="email" id="email" class="swal2-input" value="${student.user?.email || student.email}" required>
+        <select id="classId" class="swal2-select" required>
+          <option value="">Select Class</option>
+          ${classes.map(c => `<option value="${c._id}" ${student.classId === c._id ? 'selected' : ''}>${c.grade} ${c.className}</option>`).join('')}
+        </select>
+      `,
+      confirmButtonText: 'Update Student',
+      confirmButtonColor: '#3498db',
+      showCancelButton: true,
+      preConfirm: () => {
+        const fullName = document.getElementById('fullName').value;
+        const email = document.getElementById('email').value;
+        const classId = document.getElementById('classId').value;
+        if (!fullName || !email || !classId) {
+          Swal.showValidationMessage('Please fill required fields');
+          return false;
+        }
+        return { fullName, email, classId };
       }
-      return { fullName, email, classId };
-    }
-  });
+    });
 
-  if (formValues) {
-    const token = getToken();
-    try {
-      const response = await fetch(`${API_URL}/teacher/students/${student._id}`, {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
-        },
-        body: JSON.stringify(formValues)
-      });
-      
-      if (response.ok) {
-        Swal.fire('Success!', 'Student updated successfully', 'success');
-        fetchData();
-      } else {
-        const error = await response.json();
-        Swal.fire('Error', error.message || 'Failed to update student', 'error');
+    if (formValues) {
+      const token = getToken();
+      try {
+        const response = await fetch(`${API_URL}/teacher/students/${student._id}`, {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`
+          },
+          body: JSON.stringify(formValues)
+        });
+        
+        if (response.ok) {
+          Swal.fire('Success!', 'Student updated successfully', 'success');
+          fetchData();
+        } else {
+          Swal.fire('Error', 'Failed to update student', 'error');
+        }
+      } catch (error) {
+        Swal.fire('Error', 'Network error', 'error');
       }
-    } catch (error) {
-      Swal.fire('Error', 'Network error', 'error');
-    }
-  }
-};     // API call would go here
     }
   };
 
- // Delete Student
-const handleDeleteStudent = async (student) => {
-  const result = await Swal.fire({
-    title: 'Delete Student?',
-    text: `Are you sure you want to delete ${student.user?.fullName || student.fullName}? This action cannot be undone.`,
-    icon: 'warning',
-    showCancelButton: true,
-    confirmButtonColor: '#e74c3c',
-    confirmButtonText: 'Yes, Delete',
-    cancelButtonText: 'Cancel'
-  });
-  
-  if (result.isConfirmed) {
-    const token = getToken();
-    try {
-      const response = await fetch(`${API_URL}/teacher/students/${student._id}`, {
-        method: 'DELETE',
-        headers: {
-          'Authorization': `Bearer ${token}`
+  // Delete Student
+  const handleDeleteStudent = async (student) => {
+    const result = await Swal.fire({
+      title: 'Delete Student?',
+      text: `Are you sure you want to delete ${student.user?.fullName || student.fullName}? This action cannot be undone.`,
+      icon: 'warning',
+      showCancelButton: true,
+      confirmButtonColor: '#e74c3c',
+      confirmButtonText: 'Yes, Delete',
+      cancelButtonText: 'Cancel'
+    });
+    
+    if (result.isConfirmed) {
+      const token = getToken();
+      try {
+        const response = await fetch(`${API_URL}/teacher/students/${student._id}`, {
+          method: 'DELETE',
+          headers: {
+            'Authorization': `Bearer ${token}`
+          }
+        });
+        
+        if (response.ok) {
+          Swal.fire('Deleted!', 'Student has been removed successfully.', 'success');
+          fetchData();
+        } else {
+          const error = await response.json();
+          Swal.fire('Error', error.message || 'Failed to delete student', 'error');
         }
-      });
-      
-      if (response.ok) {
-        Swal.fire('Deleted!', 'Student has been removed successfully.', 'success');
-        fetchData(); // Refresh the students list
-      } else {
-        const error = await response.json();
-        Swal.fire('Error', error.message || 'Failed to delete student', 'error');
+      } catch (error) {
+        Swal.fire('Error', 'Network error. Please try again.', 'error');
       }
-    } catch (error) {
-      console.error('Error deleting student:', error);
-      Swal.fire('Error', 'Network error. Please try again.', 'error');
     }
-  }
-};
+  };
 
   // View Credentials
   const handleViewCredentials = (student) => {
@@ -478,13 +484,30 @@ const handleDeleteStudent = async (student) => {
         if (!reason || !fromDate || !toDate) {
           Swal.showValidationMessage('Please fill all fields');
           return false;
-        }
-        return { type, reason, fromDate, toDate };
+               return { type, reason, fromDate, toDate };
       }
     });
 
     if (formValues) {
-      Swal.fire('Request Submitted!', 'Your permission request has been sent to Discipline Admin.', 'success');
+      const token = getToken();
+      try {
+        const response = await fetch(`${API_URL}/teacher/permissions`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`
+          },
+          body: JSON.stringify(formValues)
+        });
+        
+        if (response.ok) {
+          Swal.fire('Request Submitted!', 'Your permission request has been sent to Discipline Admin.', 'success');
+        } else {
+          Swal.fire('Error', 'Failed to submit request', 'error');
+        }
+      } catch (error) {
+        Swal.fire('Error', 'Network error', 'error');
+      }
     }
   };
 
@@ -530,7 +553,165 @@ const handleDeleteStudent = async (student) => {
     });
 
     if (formValues) {
-      Swal.fire('Report Submitted!', 'The discipline case has been reported to Discipline Admin.', 'success');
+      const token = getToken();
+      try {
+        const response = await fetch(`${API_URL}/teacher/discipline`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`
+          },
+          body: JSON.stringify(formValues)
+        });
+        
+        if (response.ok) {
+          Swal.fire('Report Submitted!', 'The discipline case has been reported to Discipline Admin.', 'success');
+        } else {
+          Swal.fire('Error', 'Failed to submit report', 'error');
+        }
+      } catch (error) {
+        Swal.fire('Error', 'Network error', 'error');
+      }
+    }
+  };
+
+  // Create Assignment
+  const handleCreateAssignment = async () => {
+    if (classes.length === 0) {
+      Swal.fire('No Classes', 'Please create a class first', 'warning');
+      return;
+    }
+    
+    const { value: formValues } = await Swal.fire({
+      title: 'Create Assignment',
+      html: `
+        <input type="text" id="title" class="swal2-input" placeholder="Title" required>
+        <textarea id="description" class="swal2-textarea" placeholder="Description" required></textarea>
+        <input type="text" id="subject" class="swal2-input" placeholder="Subject" required>
+        <select id="classId" class="swal2-select" required>
+          <option value="">Select Class</option>
+          ${classes.map(c => `<option value="${c._id}">${c.grade} ${c.className}</option>`).join('')}
+        </select>
+        <input type="date" id="dueDate" class="swal2-input" required>
+      `,
+      confirmButtonText: 'Create Assignment',
+      confirmButtonColor: '#3498db',
+      showCancelButton: true,
+      preConfirm: () => {
+        const title = document.getElementById('title').value;
+        const description = document.getElementById('description').value;
+        const subject = document.getElementById('subject').value;
+        const classId = document.getElementById('classId').value;
+        const dueDate = document.getElementById('dueDate').value;
+        
+        if (!title || !description || !subject || !classId || !dueDate) {
+          Swal.showValidationMessage('Please fill all fields');
+          return false;
+        }
+        return { title, description, subject, classId, dueDate, totalPoints: 100 };
+      }
+    });
+
+    if (formValues) {
+      const token = getToken();
+      const response = await fetch(`${API_URL}/teacher/assignments`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify(formValues)
+      });
+      
+      if (response.ok) {
+        Swal.fire('Success!', 'Assignment created successfully', 'success');
+        fetchData();
+      } else {
+        Swal.fire('Error', 'Failed to create assignment', 'error');
+      }
+    }
+  };
+
+  // Mark Attendance
+  const handleMarkAttendance = async () => {
+    if (classes.length === 0) {
+      Swal.fire('No Classes', 'Please create a class first', 'warning');
+      return;
+    }
+    
+    const { value: formValues } = await Swal.fire({
+      title: 'Mark Attendance',
+      html: `
+        <select id="classId" class="swal2-select" required>
+          <option value="">Select Class</option>
+          ${classes.map(c => `<option value="${c._id}">${c.grade} ${c.className}</option>`).join('')}
+        </select>
+        <input type="date" id="date" class="swal2-input" value="${new Date().toISOString().split('T')[0]}" required>
+        <div id="students-list" style="max-height: 300px; overflow-y: auto; margin-top: 10px;"></div>
+      `,
+      confirmButtonText: 'Save Attendance',
+      confirmButtonColor: '#27ae60',
+      showCancelButton: true,
+      width: '600px',
+      didOpen: () => {
+        const classSelect = document.getElementById('classId');
+        const studentsDiv = document.getElementById('students-list');
+        
+        classSelect.addEventListener('change', async () => {
+          const classId = classSelect.value;
+          if (classId) {
+            const classStudents = students.filter(s => s.classId === classId);
+            studentsDiv.innerHTML = classStudents.map(s => `
+              <div style="display: flex; justify-content: space-between; align-items: center; padding: 8px; border-bottom: 1px solid #eee;">
+                <span>${s.user?.fullName || s.fullName}</span>
+                <select id="attendance-${s._id}" style="padding: 4px 8px;">
+                  <option value="Present">Present</option>
+                  <option value="Absent">Absent</option>
+                  <option value="Late">Late</option>
+                </select>
+              </div>
+            `).join('');
+          }
+        });
+      },
+      preConfirm: () => {
+        const classId = document.getElementById('classId').value;
+        const date = document.getElementById('date').value;
+        if (!classId || !date) {
+          Swal.showValidationMessage('Please select class and date');
+          return false;
+        }
+        
+        const studentDivs = document.querySelectorAll('#students-list div');
+        const records = [];
+        studentDivs.forEach(div => {
+          const select = div.querySelector('select');
+          const studentId = select.id.replace('attendance-', '');
+          const status = select.value;
+          records.push({ studentId, status });
+        });
+        
+        return { classId, date, records };
+      }
+    });
+
+    if (formValues) {
+      const token = getToken();
+      const response = await fetch(`${API_URL}/teacher/attendance`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify(formValues)
+      });
+      
+      if (response.ok) {
+        Swal.fire('Success!', 'Attendance marked successfully', 'success');
+        fetchData();
+      } else {
+        Swal.fire('Error', 'Failed to mark attendance', 'error');
+      }
     }
   };
 
@@ -555,65 +736,78 @@ const handleDeleteStudent = async (student) => {
 
   if (loading) {
     return (
-      <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh', background: '#f0f4f8' }}>
+      <div className="loading-container" style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh', background: '#f0f4f8' }}>
         <i className="fas fa-spinner fa-spin" style={{ fontSize: '3rem', color: '#1a3a5c' }}></i>
+        <p style={{ marginLeft: '10px', color: '#666' }}>Loading dashboard...</p>
       </div>
     );
   }
 
   return (
-    <div style={{ display: 'flex', minHeight: '100vh', background: '#f0f4f8' }}>
+    <div className="teacher-dashboard" style={{ display: 'flex', minHeight: '100vh', background: '#f0f4f8' }}>
       {/* Mobile Overlay */}
       {mobileMenuOpen && (
-        <div onClick={() => setMobileMenuOpen(false)} style={{
-          position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
-          background: 'rgba(0,0,0,0.5)', zIndex: 998
-        }} />
+        <div 
+          onClick={() => setMobileMenuOpen(false)} 
+          className="mobile-overlay"
+          style={{
+            position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
+            background: 'rgba(0,0,0,0.5)', zIndex: 998
+          }}
+        />
       )}
 
       {/* Sidebar */}
-      <aside style={{
+      <aside className="sidebar" style={{
         width: isMobile ? (mobileMenuOpen ? sidebarWidth : '0px') : sidebarWidth,
         background: '#1a3a5c', color: 'white', position: 'fixed', left: 0, top: 0, bottom: 0,
         transition: 'width 0.3s ease', overflow: 'hidden', display: 'flex',
         flexDirection: 'column', zIndex: 999, boxShadow: '2px 0 10px rgba(0,0,0,0.1)'
       }}>
-        <div style={{ padding: sidebarCollapsed ? '1rem 0' : '1.5rem', textAlign: 'center', borderBottom: '1px solid rgba(255,255,255,0.1)' }}>
+        <div className="sidebar-header" style={{ padding: sidebarCollapsed ? '1rem 0' : '1.5rem', textAlign: 'center', borderBottom: '1px solid rgba(255,255,255,0.1)', position: 'relative' }}>
           {!sidebarCollapsed && (
             <>
-              <div style={{ width: '60px', height: '60px', background: '#ffc107', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 1rem' }}>
+              <div className="sidebar-avatar" style={{ width: '60px', height: '60px', background: '#ffc107', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 1rem' }}>
                 <i className="fas fa-chalkboard-user" style={{ fontSize: '2rem', color: '#1a3a5c' }}></i>
               </div>
-              <h3 style={{ fontSize: '0.9rem' }}>{userName}</h3>
-              <p style={{ fontSize: '0.7rem', opacity: 0.8 }}>Teacher</p>
+              <h3 style={{ fontSize: '0.9rem', margin: 0 }}>{userName}</h3>
+              <p style={{ fontSize: '0.7rem', opacity: 0.8, margin: '5px 0 0' }}>Teacher</p>
             </>
           )}
           {sidebarCollapsed && (
-            <div style={{ width: '50px', height: '50px', background: '#ffc107', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto' }}>
+            <div className="sidebar-avatar-collapsed" style={{ width: '50px', height: '50px', background: '#ffc107', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto' }}>
               <i className="fas fa-chalkboard-user" style={{ fontSize: '1.5rem', color: '#1a3a5c' }}></i>
             </div>
           )}
-          <button onClick={() => setSidebarCollapsed(!sidebarCollapsed)} style={{
-            position: 'absolute', bottom: '-12px', right: '-12px', width: '24px', height: '24px',
-            background: '#ffc107', border: 'none', borderRadius: '50%', cursor: 'pointer', color: '#1a3a5c'
-          }}>
+          <button 
+            onClick={() => setSidebarCollapsed(!sidebarCollapsed)} 
+            className="collapse-btn"
+            style={{
+              position: 'absolute', bottom: '-12px', right: '-12px', width: '24px', height: '24px',
+              background: '#ffc107', border: 'none', borderRadius: '50%', cursor: 'pointer', color: '#1a3a5c'
+            }}
+          >
             <i className={`fas fa-chevron-${sidebarCollapsed ? 'right' : 'left'}`}></i>
           </button>
         </div>
 
-        <nav style={{ flex: 1, padding: '1rem 0', overflowY: 'auto' }}>
+        <nav className="sidebar-nav" style={{ flex: 1, padding: '1rem 0', overflowY: 'auto' }}>
           {menuItems.map((item) => (
-            <button key={item.id} onClick={() => { setActiveTab(item.id); if (isMobile) setMobileMenuOpen(false); }}
+            <button 
+              key={item.id} 
+              onClick={() => { setActiveTab(item.id); if (isMobile) setMobileMenuOpen(false); }}
+              className={`nav-item ${activeTab === item.id ? 'active' : ''}`}
               style={{
                 display: 'flex', alignItems: 'center', justifyContent: sidebarCollapsed ? 'center' : 'flex-start',
                 gap: '12px', width: '100%', padding: sidebarCollapsed ? '12px' : '12px 20px',
                 background: activeTab === item.id ? 'rgba(255,255,255,0.1)' : 'transparent',
                 border: 'none', color: 'white', cursor: 'pointer', fontSize: '0.9rem', whiteSpace: 'nowrap'
-              }}>
+              }}
+            >
               <i className={item.icon} style={{ width: '20px', color: item.color }}></i>
               {!sidebarCollapsed && <span>{item.label}</span>}
               {item.id === 'chat' && unreadCount > 0 && !sidebarCollapsed && (
-                <span style={{ marginLeft: 'auto', background: '#e74c3c', borderRadius: '50%', padding: '2px 6px', fontSize: '10px' }}>
+                <span className="unread-badge" style={{ marginLeft: 'auto', background: '#e74c3c', borderRadius: '50%', padding: '2px 6px', fontSize: '10px' }}>
                   {unreadCount}
                 </span>
               )}
@@ -621,8 +815,8 @@ const handleDeleteStudent = async (student) => {
           ))}
         </nav>
 
-        <div style={{ padding: '1rem', borderTop: '1px solid rgba(255,255,255,0.1)' }}>
-          <button onClick={handleLogout} style={{
+        <div className="sidebar-footer" style={{ padding: '1rem', borderTop: '1px solid rgba(255,255,255,0.1)' }}>
+          <button onClick={handleLogout} className="logout-btn" style={{
             display: 'flex', alignItems: 'center', justifyContent: sidebarCollapsed ? 'center' : 'flex-start',
             gap: '12px', width: '100%', padding: '12px', background: '#e74c3c',
             border: 'none', borderRadius: '8px', color: 'white', cursor: 'pointer'
@@ -634,19 +828,22 @@ const handleDeleteStudent = async (student) => {
       </aside>
 
       {/* Main Content */}
-      <main style={{
+      <main className="main-content" style={{
         flex: 1, marginLeft: isMobile ? '0' : sidebarWidth,
         transition: 'margin-left 0.3s ease', padding: '20px', width: '100%', overflowX: 'auto'
       }}>
         {/* Top Navbar */}
-        <div style={{
+        <div className="top-navbar" style={{
           background: 'white', padding: '10px 15px', borderRadius: '12px',
           display: 'flex', justifyContent: 'space-between', alignItems: 'center',
           marginBottom: '20px', flexWrap: 'wrap', gap: '10px'
         }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-            <button onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-              style={{ background: '#1a3a5c', color: 'white', border: 'none', padding: '8px 12px', borderRadius: '8px', cursor: 'pointer', display: isMobile ? 'block' : 'none' }}>
+            <button 
+              onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+              className="mobile-menu-btn"
+              style={{ background: '#1a3a5c', color: 'white', border: 'none', padding: '8px 12px', borderRadius: '8px', cursor: 'pointer', display: isMobile ? 'block' : 'none' }}
+            >
               <i className="fas fa-bars"></i>
             </button>
             <h2 style={{ color: '#1a3a5c', fontSize: '1.2rem', margin: 0 }}>
@@ -654,7 +851,7 @@ const handleDeleteStudent = async (student) => {
             </h2>
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-            <div style={{ width: '35px', height: '35px', background: '#1a3a5c', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'white' }}>
+            <div className="user-avatar" style={{ width: '35px', height: '35px', background: '#1a3a5c', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'white' }}>
               <i className="fas fa-chalkboard-user"></i>
             </div>
             <div>
@@ -668,114 +865,174 @@ const handleDeleteStudent = async (student) => {
         
         {/* Overview Tab */}
         {activeTab === 'overview' && (
-          <div>
-            <div style={{ display: 'grid', gridTemplateColumns: `repeat(auto-fit, minmax(150px, 1fr))`, gap: '1rem', marginBottom: '20px' }}>
-              <div style={{ background: 'white', padding: '1rem', borderRadius: '12px', textAlign: 'center' }}>
-                <h3>{students.length}</h3><p>Students</p>
-                <button onClick={() => setActiveTab('students')} style={{ background: '#3498db', color: 'white', border: 'none', padding: '5px 10px', borderRadius: '5px', cursor: 'pointer' }}>View</button>
+          <div className="overview-tab">
+            <div className="stats-grid" style={{ display: 'grid', gridTemplateColumns: `repeat(auto-fit, minmax(150px, 1fr))`, gap: '1rem', marginBottom: '20px' }}>
+              <div className="stat-card" style={{ background: 'white', padding: '1rem', borderRadius: '12px', textAlign: 'center' }}>
+                <h3 style={{ margin: 0, fontSize: '1.8rem', color: '#1a3a5c' }}>{students.length}</h3>
+                <p style={{ margin: '5px 0', color: '#666' }}>Students</p>
+                <button onClick={() => setActiveTab('students')} style={{ background: '#3498db', color: 'white', border: 'none', padding: '5px 10px', borderRadius: '5px', cursor: 'pointer', marginTop: '5px' }}>View</button>
               </div>
-              <div style={{ background: 'white', padding: '1rem', borderRadius: '12px', textAlign: 'center' }}>
-                <h3>{classes.length}</h3><p>Classes</p>
-                <button onClick={() => setActiveTab('classes')} style={{ background: '#27ae60', color: 'white', border: 'none', padding: '5px 10px', borderRadius: '5px', cursor: 'pointer' }}>View</button>
+              <div className="stat-card" style={{ background: 'white', padding: '1rem', borderRadius: '12px', textAlign: 'center' }}>
+                <h3 style={{ margin: 0, fontSize: '1.8rem', color: '#1a3a5c' }}>{classes.length}</h3>
+                <p style={{ margin: '5px 0', color: '#666' }}>Classes</p>
+                <button onClick={() => setActiveTab('classes')} style={{ background: '#27ae60', color: 'white', border: 'none', padding: '5px 10px', borderRadius: '5px', cursor: 'pointer', marginTop: '5px' }}>View</button>
               </div>
-              <div style={{ background: 'white', padding: '1rem', borderRadius: '12px', textAlign: 'center' }}>
-                <h3>{assignments.length}</h3><p>Assignments</p>
-                <button onClick={() => setActiveTab('assignments')} style={{ background: '#f39c12', color: 'white', border: 'none', padding: '5px 10px', borderRadius: '5px', cursor: 'pointer' }}>View</button>
+              <div className="stat-card" style={{ background: 'white', padding: '1rem', borderRadius: '12px', textAlign: 'center' }}>
+                <h3 style={{ margin: 0, fontSize: '1.8rem', color: '#1a3a5c' }}>{assignments.length}</h3>
+                <p style={{ margin: '5px 0', color: '#666' }}>Assignments</p>
+                <button onClick={() => setActiveTab('assignments')} style={{ background: '#f39c12', color: 'white', border: 'none', padding: '5px 10px', borderRadius: '5px', cursor: 'pointer', marginTop: '5px' }}>View</button>
               </div>
             </div>
             
-            <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
-              <button onClick={handleCreateClass} style={{ background: '#27ae60', color: 'white', border: 'none', padding: '10px 15px', borderRadius: '8px', cursor: 'pointer' }}><i className="fas fa-plus"></i> Create Class</button>
-              <button onClick={handleCreateStudent} style={{ background: '#3498db', color: 'white', border: 'none', padding: '10px 15px', borderRadius: '8px', cursor: 'pointer' }}><i className="fas fa-user-plus"></i> Add Student</button>
-              <button onClick={handleRequestPermission} style={{ background: '#1abc9c', color: 'white', border: 'none', padding: '10px 15px', borderRadius: '8px', cursor: 'pointer' }}><i className="fas fa-file-alt"></i> Request Permission</button>
-              <button onClick={handleReportMisconduct} style={{ background: '#e74c3c', color: 'white', border: 'none', padding: '10px 15px', borderRadius: '8px', cursor: 'pointer' }}><i className="fas fa-gavel"></i> Report Misconduct</button>
+            <div className="action-buttons" style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
+              <button onClick={handleCreateClass} className="btn btn-success" style={{ background: '#27ae60', color: 'white', border: 'none', padding: '10px 15px', borderRadius: '8px', cursor: 'pointer' }}>
+                <i className="fas fa-plus"></i> Create Class
+              </button>
+              <button onClick={handleCreateStudent} className="btn btn-primary" style={{ background: '#3498db', color: 'white', border: 'none', padding: '10px 15px', borderRadius: '8px', cursor: 'pointer' }}>
+                <i className="fas fa-user-plus"></i> Add Student
+              </button>
+              <button onClick={handleRequestPermission} className="btn btn-info" style={{ background: '#1abc9c', color: 'white', border: 'none', padding: '10px 15px', borderRadius: '8px', cursor: 'pointer' }}>
+                <i className="fas fa-file-alt"></i> Request Permission
+              </button>
+              <button onClick={handleReportMisconduct} className="btn btn-danger" style={{ background: '#e74c3c', color: 'white', border: 'none', padding: '10px 15px', borderRadius: '8px', cursor: 'pointer' }}>
+                <i className="fas fa-gavel"></i> Report Misconduct
+              </button>
             </div>
           </div>
         )}
 
         {/* Classes Tab */}
         {activeTab === 'classes' && (
-          <div style={{ background: 'white', borderRadius: '12px', padding: '1rem', overflowX: 'auto' }}>
+          <div className="classes-tab" style={{ background: 'white', borderRadius: '12px', padding: '1rem', overflowX: 'auto' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', flexWrap: 'wrap', gap: '10px', marginBottom: '1rem' }}>
-              <h2>My Classes</h2>
-              <button onClick={handleCreateClass} style={{ background: '#27ae60', color: 'white', border: 'none', padding: '8px 16px', borderRadius: '6px', cursor: 'pointer' }}><i className="fas fa-plus"></i> New Class</button>
+              <h2 style={{ margin: 0 }}>My Classes</h2>
+              <button onClick={handleCreateClass} style={{ background: '#27ae60', color: 'white', border: 'none', padding: '8px 16px', borderRadius: '6px', cursor: 'pointer' }}>
+                <i className="fas fa-plus"></i> New Class
+              </button>
             </div>
-            <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-              <thead><tr style={{ background: '#1a3a5c', color: 'white' }}>
-                <th style={{ padding: '12px' }}>Grade</th><th style={{ padding: '12px' }}>Class Name</th>
-                <th style={{ padding: '12px' }}>Academic Year</th><th style={{ padding: '12px' }}>Students</th>
-              </tr></thead>
-              <tbody>
-                {classes.map(c => (
-                  <tr key={c._id} style={{ borderBottom: '1px solid #e0e0e0' }}>
-                    <td style={{ padding: '12px' }}>{c.grade}</td>
-                    <td style={{ padding: '12px' }}>{c.className}</td>
-                    <td style={{ padding: '12px' }}>{c.academicYear}</td>
-                    <td style={{ padding: '12px' }}>{c.students?.length || 0}</td>
+            {classes.length === 0 ? (
+              <p style={{ textAlign: 'center', color: '#666', padding: '40px' }}>No classes created yet. Click "New Class" to create one.</p>
+            ) : (
+              <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: '400px' }}>
+                <thead>
+                  <tr style={{ background: '#1a3a5c', color: 'white' }}>
+                    <th style={{ padding: '12px', textAlign: 'left' }}>Grade</th>
+                    <th style={{ padding: '12px', textAlign: 'left' }}>Class Name</th>
+                    <th style={{ padding: '12px', textAlign: 'left' }}>Academic Year</th>
+                    <th style={{ padding: '12px', textAlign: 'left' }}>Students</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody>
+                  {classes.map(c => (
+                    <tr key={c._id} style={{ borderBottom: '1px solid #e0e0e0' }}>
+                      <td style={{ padding: '12px' }}>{c.grade}</td>
+                      <td style={{ padding: '12px' }}>{c.className}</td>
+                      <td style={{ padding: '12px' }}>{c.academicYear}</td>
+                      <td style={{ padding: '12px' }}>{c.students?.length || 0}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
           </div>
         )}
 
         {/* Students Tab with CRUD Operations */}
         {activeTab === 'students' && (
-          <div style={{ background: 'white', borderRadius: '12px', padding: '1rem', overflowX: 'auto' }}>
+          <div className="students-tab" style={{ background: 'white', borderRadius: '12px', padding: '1rem', overflowX: 'auto' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', flexWrap: 'wrap', gap: '10px', marginBottom: '1rem' }}>
-              <h2>My Students</h2>
-              <button onClick={handleCreateStudent} style={{ background: '#27ae60', color: 'white', border: 'none', padding: '8px 16px', borderRadius: '6px', cursor: 'pointer' }}><i className="fas fa-plus"></i> Add Student</button>
+              <h2 style={{ margin: 0 }}>My Students</h2>
+              <button onClick={handleCreateStudent} style={{ background: '#27ae60', color: 'white', border: 'none', padding: '8px 16px', borderRadius: '6px', cursor: 'pointer' }}>
+                <i className="fas fa-plus"></i> Add Student
+              </button>
             </div>
-            <table style={{ minWidth: '600px', width: '100%', borderCollapse: 'collapse' }}>
-              <thead><tr style={{ background: '#1a3a5c', color: 'white' }}>
-                <th style={{ padding: '10px' }}>ID</th><th style={{ padding: '10px' }}>Name</th><th style={{ padding: '10px' }}>Email</th>
-                <th style={{ padding: '10px' }}>Class</th><th style={{ padding: '10px' }}>Actions</th>
-              </tr></thead>
-              <tbody>
-                {students.map(s => {
-                  const studentClass = classes.find(c => c._id === s.classId);
-                  return (
-                    <tr key={s._id} style={{ borderBottom: '1px solid #e0e0e0' }}>
-                      <td style={{ padding: '10px' }}><code>{s.studentId}</code></td>
-                      <td style={{ padding: '10px' }}>{s.user?.fullName || s.fullName}</td>
-                      <td style={{ padding: '10px' }}>{s.user?.email || s.email}</td>
-                      <td style={{ padding: '10px' }}>{studentClass ? `${studentClass.grade} ${studentClass.className}` : '-'}</td>
-                      <td style={{ padding: '10px' }}>
-                        <div style={{ display: 'flex', gap: '5px', flexWrap: 'wrap' }}>
-                          <button onClick={() => handleViewCredentials(s)} style={{ background: '#3498db', color: 'white', border: 'none', padding: '4px 8px', borderRadius: '4px', cursor: 'pointer', fontSize: '0.7rem' }} title="Credentials"><i className="fas fa-key"></i></button>
-                          <button onClick={() => handleEditStudent(s)} style={{ background: '#f39c12', color: 'white', border: 'none', padding: '4px 8px', borderRadius: '4px', cursor: 'pointer', fontSize: '0.7rem' }} title="Edit"><i className="fas fa-edit"></i></button>
-                          <button onClick={() => handleResetPassword(s)} style={{ background: '#9b59b6', color: 'white', border: 'none', padding: '4px 8px', borderRadius: '4px', cursor: 'pointer', fontSize: '0.7rem' }} title="Reset Password"><i className="fas fa-sync-alt"></i></button>
-                          <button onClick={() => handleDeleteStudent(s)} style={{ background: '#e74c3c', color: 'white', border: 'none', padding: '4px 8px', borderRadius: '4px', cursor: 'pointer', fontSize: '0.7rem' }} title="Delete"><i className="fas fa-trash"></i></button>
-                        </div>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
+            {students.length === 0 ? (
+              <p style={{ textAlign: 'center', color: '#666', padding: '40px' }}>No students added yet. Click "Add Student" to create one.</p>
+            ) : (
+              <table style={{ minWidth: '700px', width: '100%', borderCollapse: 'collapse' }}>
+                <thead>
+                  <tr style={{ background: '#1a3a5c', color: 'white' }}>
+                    <th style={{ padding: '10px' }}>ID</th>
+                    <th style={{ padding: '10px' }}>Name</th>
+                    <th style={{ padding: '10px' }}>Email</th>
+                    <th style={{ padding: '10px' }}>Class</th>
+                    <th style={{ padding: '10px' }}>Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {students.map(s => {
+                    const studentClass = classes.find(c => c._id === s.classId);
+                    return (
+                      <tr key={s._id} style={{ borderBottom: '1px solid #e0e0e0' }}>
+                        <td style={{ padding: '10px' }}><code>{s.studentId}</code></td>
+                        <td style={{ padding: '10px' }}>{s.user?.fullName || s.fullName}</td>
+                        <td style={{ padding: '10px' }}>{s.user?.email || s.email}</td>
+                        <td style={{ padding: '10px' }}>{studentClass ? `${studentClass.grade} ${studentClass.className}` : '-'}</td>
+                        <td style={{ padding: '10px' }}>
+                          <div style={{ display: 'flex', gap: '5px', flexWrap: 'wrap' }}>
+                            <button onClick={() => handleViewCredentials(s)} style={{ background: '#3498db', color: 'white', border: 'none', padding: '4px 8px', borderRadius: '4px', cursor: 'pointer', fontSize: '0.7rem' }} title="Credentials">
+                              <i className="fas fa-key"></i>
+                            </button>
+                            <button onClick={() => handleEditStudent(s)} style={{ background: '#f39c12', color: 'white', border: 'none', padding: '4px 8px', borderRadius: '4px', cursor: 'pointer', fontSize: '0.7rem' }} title="Edit">
+                              <i className="fas fa-edit"></i>
+                            </button>
+                            <button onClick={() => handleResetPassword(s)} style={{ background: '#9b59b6', color: 'white', border: 'none', padding: '4px 8px', borderRadius: '4px', cursor: 'pointer', fontSize: '0.7rem' }} title="Reset Password">
+                              <i className="fas fa-sync-alt"></i>
+                            </button>
+                            <button onClick={() => handleDeleteStudent(s)} style={{ background: '#e74c3c', color: 'white', border: 'none', padding: '4px 8px', borderRadius: '4px', cursor: 'pointer', fontSize: '0.7rem' }} title="Delete">
+                              <i className="fas fa-trash"></i>
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            )}
           </div>
         )}
 
         {/* Assignments Tab */}
         {activeTab === 'assignments' && (
-          <div style={{ background: 'white', borderRadius: '12px', padding: '1rem' }}>
+          <div className="assignments-tab" style={{ background: 'white', borderRadius: '12px', padding: '1rem' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', flexWrap: 'wrap', gap: '10px', marginBottom: '1rem' }}>
-              <h2>Assignments</h2>
-              <button onClick={handleCreateAssignment} style={{ background: '#f39c12', color: 'white', border: 'none', padding: '8px 16px', borderRadius: '6px', cursor: 'pointer' }}><i className="fas fa-plus"></i> New Assignment</button>
+              <h2 style={{ margin: 0 }}>Assignments</h2>
+              <button onClick={handleCreateAssignment} style={{ background: '#f39c12', color: 'white', border: 'none', padding: '8px 16px', borderRadius: '6px', cursor: 'pointer' }}>
+                <i className="fas fa-plus"></i> New Assignment
+              </button>
             </div>
-            {assignments.map(a => (
-              <div key={a._id} style={{ padding: '1rem', borderBottom: '1px solid #e0e0e0' }}>
-                <h3>{a.title}</h3>
-                <p>{a.description}</p>
-                <p><strong>Due:</strong> {new Date(a.dueDate).toLocaleDateString()}</p>
-              </div>
-            ))}
+            {assignments.length === 0 ? (
+              <p style={{ textAlign: 'center', color: '#666', padding: '40px' }}>No assignments created yet. Click "New Assignment" to create one.</p>
+            ) : (
+              assignments.map(a => (
+                <div key={a._id} style={{ padding: '1rem', borderBottom: '1px solid #e0e0e0', marginBottom: '0.5rem' }}>
+                  <h3 style={{ margin: '0 0 5px 0', color: '#1a3a5c' }}>{a.title}</h3>
+                  <p style={{ margin: '0 0 10px 0', color: '#666' }}>{a.description}</p>
+                  <p><strong>Subject:</strong> {a.subject}</p>
+                  <p><strong>Due Date:</strong> {new Date(a.dueDate).toLocaleDateString()}</p>
+                  <p><strong>Submissions:</strong> {a.submissions?.length || 0}</p>
+                </div>
+              ))
+            )}
+          </div>
+        )}
+
+        {/* Attendance Tab */}
+        {activeTab === 'attendance' && (
+          <div className="attendance-tab" style={{ background: 'white', borderRadius: '12px', padding: '1rem', textAlign: 'center' }}>
+            <i className="fas fa-clock" style={{ fontSize: '3rem', color: '#e74c3c', marginBottom: '1rem' }}></i>
+            <h3>Attendance Management</h3>
+            <p>Mark student attendance for your classes</p>
+            <button onClick={handleMarkAttendance} style={{ background: '#e74c3c', color: 'white', border: 'none', padding: '10px 20px', borderRadius: '8px', cursor: 'pointer', marginTop: '10px' }}>
+              <i className="fas fa-calendar-check"></i> Mark Attendance
+            </button>
           </div>
         )}
 
         {/* Permissions Tab */}
         {activeTab === 'permissions' && (
-          <div style={{ background: 'white', borderRadius: '12px', padding: '1rem', textAlign: 'center' }}>
+          <div className="permissions-tab" style={{ background: 'white', borderRadius: '12px', padding: '1rem', textAlign: 'center' }}>
             <i className="fas fa-file-alt" style={{ fontSize: '3rem', color: '#1abc9c', marginBottom: '1rem' }}></i>
             <h3>Request Permission</h3>
             <p>Submit a permission request to the Discipline Admin</p>
@@ -787,7 +1044,7 @@ const handleDeleteStudent = async (student) => {
 
         {/* Discipline Report Tab */}
         {activeTab === 'discipline' && (
-          <div style={{ background: 'white', borderRadius: '12px', padding: '1rem', textAlign: 'center' }}>
+          <div className="discipline-tab" style={{ background: 'white', borderRadius: '12px', padding: '1rem', textAlign: 'center' }}>
             <i className="fas fa-gavel" style={{ fontSize: '3rem', color: '#e74c3c', marginBottom: '1rem' }}></i>
             <h3>Report Student Misconduct</h3>
             <p>Report any student behavioral issues to the Discipline Admin</p>
@@ -799,12 +1056,20 @@ const handleDeleteStudent = async (student) => {
 
         {/* Chat Tab */}
         {activeTab === 'chat' && (
-          <div style={{ background: 'white', borderRadius: '12px', overflow: 'hidden', display: 'flex', flexDirection: isMobile ? 'column' : 'row', height: isMobile ? 'auto' : '70vh' }}>
+          <div className="chat-tab" style={{ background: 'white', borderRadius: '12px', overflow: 'hidden', display: 'flex', flexDirection: isMobile ? 'column' : 'row', height: isMobile ? 'auto' : '70vh' }}>
             <div style={{ width: isMobile ? '100%' : '30%', borderRight: isMobile ? 'none' : '1px solid #e0e0e0', borderBottom: isMobile ? '1px solid #e0e0e0' : 'none', overflowY: 'auto', maxHeight: isMobile ? '200px' : 'auto' }}>
-              <div style={{ padding: '1rem', background: '#f8f9fa', borderBottom: '1px solid #e0e0e0' }}><h3>Chats</h3></div>
+              <div style={{ padding: '1rem', background: '#f8f9fa', borderBottom: '1px solid #e0e0e0' }}>
+                <h3 style={{ margin: 0 }}>Chats <span style={{ fontSize: '0.8rem', color: '#666' }}>({unreadCount} unread)</span></h3>
+              </div>
               {users.map(user => (
-                <div key={user._id} onClick={() => { setSelectedUser(user); fetchMessages(user._id); }}
-                  style={{ padding: '1rem', borderBottom: '1px solid #e0e0e0', cursor: 'pointer', background: selectedUser?._id === user._id ? '#f0f4f8' : 'white' }}>
+                <div 
+                  key={user._id} 
+                  onClick={() => { setSelectedUser(user); fetchMessages(user._id); }}
+                  style={{ 
+                    padding: '1rem', borderBottom: '1px solid #e0e0e0', cursor: 'pointer', 
+                    background: selectedUser?._id === user._id ? '#f0f4f8' : 'white'
+                  }}
+                >
                   <div style={{ fontWeight: 'bold' }}>{user.fullName}</div>
                   <div style={{ fontSize: '0.8rem', color: '#666' }}>{user.role}</div>
                 </div>
@@ -814,7 +1079,9 @@ const handleDeleteStudent = async (student) => {
             <div style={{ width: isMobile ? '100%' : '70%', display: 'flex', flexDirection: 'column', height: isMobile ? '400px' : '100%' }}>
               {selectedUser ? (
                 <>
-                  <div style={{ padding: '1rem', background: '#1a3a5c', color: 'white' }}><h3>{selectedUser.fullName}</h3></div>
+                  <div style={{ padding: '1rem', background: '#1a3a5c', color: 'white' }}>
+                    <h3 style={{ margin: 0 }}>{selectedUser.fullName}</h3>
+                  </div>
                   <div style={{ flex: 1, overflowY: 'auto', padding: '1rem' }}>
                     {messages.map(msg => (
                       <div key={msg._id} style={{ textAlign: msg.senderId === localStorage.getItem('userId') ? 'right' : 'left', marginBottom: '1rem' }}>
@@ -827,12 +1094,23 @@ const handleDeleteStudent = async (student) => {
                     ))}
                   </div>
                   <div style={{ padding: '1rem', borderTop: '1px solid #e0e0e0', display: 'flex', gap: '0.5rem' }}>
-                    <input type="text" value={messageText} onChange={(e) => setMessageText(e.target.value)} onKeyPress={(e) => e.key === 'Enter' && handleSendMessage()} placeholder="Type a message..." style={{ flex: 1, padding: '0.5rem', border: '1px solid #ddd', borderRadius: '8px' }} />
-                    <button onClick={handleSendMessage} style={{ background: '#1a3a5c', color: 'white', border: 'none', padding: '0.5rem 1rem', borderRadius: '8px', cursor: 'pointer' }}>Send</button>
+                    <input 
+                      type="text" 
+                      value={messageText} 
+                      onChange={(e) => setMessageText(e.target.value)} 
+                      onKeyPress={(e) => e.key === 'Enter' && handleSendMessage()} 
+                      placeholder="Type a message..." 
+                      style={{ flex: 1, padding: '0.5rem', border: '1px solid #ddd', borderRadius: '8px' }} 
+                    />
+                    <button onClick={handleSendMessage} style={{ background: '#1a3a5c', color: 'white', border: 'none', padding: '0.5rem 1rem', borderRadius: '8px', cursor: 'pointer' }}>
+                      Send
+                    </button>
                   </div>
                 </>
               ) : (
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', color: '#666' }}>Select a user to start chatting</div>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', color: '#666' }}>
+                  Select a user to start chatting
+                </div>
               )}
             </div>
           </div>
@@ -840,8 +1118,8 @@ const handleDeleteStudent = async (student) => {
 
         {/* Profile Tab */}
         {activeTab === 'profile' && (
-          <div style={{ background: 'white', borderRadius: '12px', padding: '1rem' }}>
-            <h2>Profile Information</h2>
+          <div className="profile-tab" style={{ background: 'white', borderRadius: '12px', padding: '1rem' }}>
+            <h2 style={{ marginTop: 0, color: '#1a3a5c' }}>Profile Information</h2>
             <p><strong>Name:</strong> {userName}</p>
             <p><strong>Email:</strong> {localStorage.getItem('userEmail')}</p>
             <p><strong>Role:</strong> Teacher</p>
