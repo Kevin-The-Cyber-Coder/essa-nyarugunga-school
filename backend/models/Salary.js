@@ -15,4 +15,4 @@ const salarySchema = new mongoose.Schema({
   createdAt: { type: Date, default: Date.now }
 });
 
-module.exports = mongoose.models.Salary || mongoose.model('Salary', salarySchema);
+module.exports = mongoose.model('Salary', salarySchema);

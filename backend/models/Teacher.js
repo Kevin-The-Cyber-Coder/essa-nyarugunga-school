@@ -13,4 +13,4 @@ const teacherSchema = new mongoose.Schema({
   createdAt: { type: Date, default: Date.now }
 });
 
-module.exports = mongoose.models.Teacher || mongoose.model('Teacher', teacherSchema);
+module.exports = mongoose.model('Teacher', teacherSchema);

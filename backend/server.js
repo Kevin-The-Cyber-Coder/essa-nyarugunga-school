@@ -18,8 +18,8 @@ mongoose.connect(process.env.MONGODB_URI || 'mongodb://127.0.0.1:27017/essa_scho
 // Import User model
 const User = require('./models/User');
 
-// Create default super admin if none exists
-const createDefaultSuperAdmin = async () => {
+// Create ONLY Super Admin (no other demo credentials)
+const createSuperAdmin = async () => {
   try {
     const existingSuperAdmin = await User.findOne({ role: 'super_admin' });
     if (!existingSuperAdmin) {
@@ -32,9 +32,14 @@ const createDefaultSuperAdmin = async () => {
         phone: '+250788123456',
         isActive: true
       });
-      console.log('\n✅ SUPER ADMIN CREATED!');
+      console.log('\n✅ ========================================');
+      console.log('✅ SUPER ADMIN CREATED SUCCESSFULLY!');
+      console.log('✅ ========================================');
       console.log('📧 Email: admin@essa.rw');
-      console.log('🔑 Password: admin123\n');
+      console.log('🔑 Password: admin123');
+      console.log('✅ ========================================');
+      console.log('\n⚠️  No other demo credentials exist.');
+      console.log('⚠️  All other users must be created by admins.\n');
     } else {
       console.log('\n✅ Super Admin already exists');
       console.log('📧 Email: admin@essa.rw');
@@ -45,7 +50,7 @@ const createDefaultSuperAdmin = async () => {
   }
 };
 
-// Import routes - Check if files exist
+// Import routes
 const authRoutes = require('./routes/authRoutes');
 const superAdminRoutes = require('./routes/superAdminRoutes');
 const academicAdminRoutes = require('./routes/academicAdminRoutes');
@@ -74,5 +79,5 @@ const PORT = process.env.PORT || 5000;
 app.listen(PORT, async () => {
   console.log(`🚀 Server running on http://localhost:${PORT}`);
   console.log(`📍 Health check: http://localhost:${PORT}/api/health`);
-  await createDefaultSuperAdmin();
+  await createSuperAdmin();
 });

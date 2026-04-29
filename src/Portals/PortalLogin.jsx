@@ -252,16 +252,16 @@ const PortalLogin = () => {
               </button>
             </form>
 
-            <div className="demo-info">
-              <p><i className="fas fa-info-circle"></i> Super Admin Credentials:</p>
-              <div className="demo-creds">
-                <div className="demo-cred">
-                  <span className="role-badge super-admin">Super Admin</span>
-                  <code>admin@essa.rw / admin123</code>
-                </div>
-              </div>
-              <p className="note">Note: Other admins, teachers, students, and parents are created within the system by respective administrators.</p>
-            </div>
+<div className="demo-info">
+  <p><i className="fas fa-info-circle"></i> Default Admin Credentials:</p>
+  <div className="demo-creds">
+    <div className="demo-cred">
+      <span className="role-badge super-admin">Super Admin</span>
+      <code>admin@essa.rw / admin123</code>
+    </div>
+  </div>
+  <p className="note">⚠️ Note: This is the only default account. All other users (Academic Admin, Discipline Admin, Accounts Admin, Teachers, Students, Parents) must be created by the Super Admin.</p>
+</div>
           </div>
         </div>
       </div>

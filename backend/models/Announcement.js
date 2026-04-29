@@ -11,4 +11,4 @@ const announcementSchema = new mongoose.Schema({
   createdAt: { type: Date, default: Date.now }
 });
 
-module.exports = mongoose.models.Announcement || mongoose.model('Announcement', announcementSchema);
+module.exports = mongoose.model('Announcement', announcementSchema);

@@ -24,4 +24,4 @@ gradeSchema.pre('save', function(next) {
   next();
 });
 
-module.exports = mongoose.models.Grade || mongoose.model('Grade', gradeSchema);
+module.exports = mongoose.model('Grade', gradeSchema);

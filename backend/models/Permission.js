@@ -21,4 +21,4 @@ const permissionSchema = new mongoose.Schema({
   createdAt: { type: Date, default: Date.now }
 });
 
-module.exports = mongoose.models.Permission || mongoose.model('Permission', permissionSchema);
+module.exports = mongoose.model('Permission', permissionSchema);

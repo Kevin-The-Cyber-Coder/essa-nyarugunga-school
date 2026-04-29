@@ -22,4 +22,4 @@ const disciplineSchema = new mongoose.Schema({
   createdAt: { type: Date, default: Date.now }
 });
 
-module.exports = mongoose.models.Discipline || mongoose.model('Discipline', disciplineSchema);
+module.exports = mongoose.model('Discipline', disciplineSchema);

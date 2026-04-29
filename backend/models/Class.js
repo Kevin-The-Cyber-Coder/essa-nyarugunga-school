@@ -10,4 +10,4 @@ const classSchema = new mongoose.Schema({
   createdAt: { type: Date, default: Date.now }
 });
 
-module.exports = mongoose.models.Class || mongoose.model('Class', classSchema);
+module.exports = mongoose.model('Class', classSchema);

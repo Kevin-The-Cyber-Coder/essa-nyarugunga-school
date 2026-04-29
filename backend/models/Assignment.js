@@ -8,11 +8,9 @@ const assignmentSchema = new mongoose.Schema({
   teacherId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
   dueDate: { type: Date, required: true },
   totalPoints: { type: Number, default: 100 },
-  attachments: [{ fileName: String, fileUrl: String }],
   submissions: [{
     studentId: { type: mongoose.Schema.Types.ObjectId, ref: 'Student' },
     submittedAt: Date,
-    fileUrl: String,
     content: String,
     score: Number,
     feedback: String,
@@ -21,4 +19,4 @@ const assignmentSchema = new mongoose.Schema({
   createdAt: { type: Date, default: Date.now }
 });
 
-module.exports = mongoose.models.Assignment || mongoose.model('Assignment', assignmentSchema);
+module.exports = mongoose.model('Assignment', assignmentSchema);

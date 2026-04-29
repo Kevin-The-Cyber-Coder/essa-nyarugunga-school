@@ -19,4 +19,4 @@ const feeSchema = new mongoose.Schema({
   createdAt: { type: Date, default: Date.now }
 });
 
-module.exports = mongoose.models.Fee || mongoose.model('Fee', feeSchema);
+module.exports = mongoose.model('Fee', feeSchema);

@@ -11,4 +11,4 @@ const studentSchema = new mongoose.Schema({
   isActive: { type: Boolean, default: true }
 });
 
-module.exports = mongoose.models.Student || mongoose.model('Student', studentSchema);
+module.exports = mongoose.model('Student', studentSchema);
