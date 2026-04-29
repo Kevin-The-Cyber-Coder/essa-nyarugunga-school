@@ -7,12 +7,9 @@ const messageSchema = new mongoose.Schema({
   receiverId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
   receiverName: { type: String, required: true },
   receiverRole: { type: String, required: true },
-  subject: { type: String, required: true },
   content: { type: String, required: true },
   isRead: { type: Boolean, default: false },
-  parentMessageId: { type: mongoose.Schema.Types.ObjectId, ref: 'Message' },
-  attachments: [{ fileName: String, fileUrl: String }],
   createdAt: { type: Date, default: Date.now }
 });
 
-module.exports = mongoose.models.Message || mongoose.model('Message', messageSchema);
+module.exports = mongoose.model('Message', messageSchema);
