@@ -72,34 +72,53 @@ const AcademicAdminDashboard = () => {
     }
   }, [navigate]);
 
-  const fetchAllData = async () => {
-    const token = getToken();
-    try {
-      const [teachersRes, classesRes, newsRes, galleryRes, perfRes, classPerfRes, annRes] = await Promise.all([
-        fetch(`${API_URL}/academic-admin/teachers-list`, { headers: { 'Authorization': `Bearer ${token}` } }),
-        fetch(`${API_URL}/academic-admin/classes`, { headers: { 'Authorization': `Bearer ${token}` } }),
-        fetch(`${API_URL}/academic-admin/news`, { headers: { 'Authorization': `Bearer ${token}` } }),
-        fetch(`${API_URL}/academic-admin/gallery`, { headers: { 'Authorization': `Bearer ${token}` } }),
-        fetch(`${API_URL}/academic-admin/students-performance`, { headers: { 'Authorization': `Bearer ${token}` } }),
-        fetch(`${API_URL}/academic-admin/class-performance`, { headers: { 'Authorization': `Bearer ${token}` } }),
-        fetch(`${API_URL}/announcements`, { headers: { 'Authorization': `Bearer ${token}` } })
-      ]);
-      
-      if (teachersRes.ok) setTeachers(await teachersRes.json());
-      if (classesRes.ok) setClasses(await classesRes.json());
-      if (newsRes.ok) setNews(await newsRes.json());
-      if (galleryRes.ok) setGallery(await galleryRes.json());
-      if (perfRes.ok) setStudentPerformance(await perfRes.json());
-      if (classPerfRes.ok) setClassPerformance(await classPerfRes.json());
-      if (annRes.ok) setAnnouncements(await annRes.json());
-      
-    } catch (error) {
-      console.error('Error fetching data:', error);
-    } finally {
-      setLoading(false);
+ 
+ const fetchAllData = async () => {
+  const token = getToken();
+  try {
+    console.log('Fetching data...');
+    
+    // Fetch teachers
+    const teachersRes = await fetch(`${API_URL}/academic-admin/teachers-list`, {
+      headers: { 'Authorization': `Bearer ${token}` }
+    });
+    if (teachersRes.ok) {
+      const teachersData = await teachersRes.json();
+      console.log('Teachers loaded:', teachersData.length);
+      setTeachers(teachersData);
     }
-  };
-
+    
+    // Fetch classes (with populated teacher info)
+    const classesRes = await fetch(`${API_URL}/academic-admin/classes`, {
+      headers: { 'Authorization': `Bearer ${token}` }
+    });
+    if (classesRes.ok) {
+      const classesData = await classesRes.json();
+      console.log('Classes loaded:', classesData);
+      setClasses(classesData);
+    }
+    
+    // Fetch other data...
+    const [newsRes, galleryRes, perfRes, classPerfRes, annRes] = await Promise.all([
+      fetch(`${API_URL}/academic-admin/news`, { headers: { 'Authorization': `Bearer ${token}` } }),
+      fetch(`${API_URL}/academic-admin/gallery`, { headers: { 'Authorization': `Bearer ${token}` } }),
+      fetch(`${API_URL}/academic-admin/students-performance`, { headers: { 'Authorization': `Bearer ${token}` } }),
+      fetch(`${API_URL}/academic-admin/class-performance`, { headers: { 'Authorization': `Bearer ${token}` } }),
+      fetch(`${API_URL}/announcements`, { headers: { 'Authorization': `Bearer ${token}` } })
+    ]);
+    
+    if (newsRes.ok) setNews(await newsRes.json());
+    if (galleryRes.ok) setGallery(await galleryRes.json());
+    if (perfRes.ok) setStudentPerformance(await perfRes.json());
+    if (classPerfRes.ok) setClassPerformance(await classPerfRes.json());
+    if (annRes.ok) setAnnouncements(await annRes.json());
+    
+  } catch (error) {
+    console.error('Error fetching data:', error);
+  } finally {
+    setLoading(false);
+  }
+};
   const fetchUsers = async () => {
     const token = getToken();
     try {
@@ -328,41 +347,7 @@ const AcademicAdminDashboard = () => {
     }
   };
 
-  const handleAssignTeacher = async (classItem) => {
-    if (teachers.length === 0) {
-      Swal.fire('No Teachers', 'Please create teachers first', 'warning');
-      return;
-    }
-    
-    const { value: teacherId } = await Swal.fire({
-      title: `Assign Teacher to ${classItem.grade} ${classItem.className}`,
-      input: 'select',
-      inputOptions: Object.fromEntries(teachers.map(t => [t._id, `${t.fullName} (${t.subject || 'General'})`])),
-      inputPlaceholder: 'Select a teacher',
-      showCancelButton: true,
-      confirmButtonText: 'Assign',
-      confirmButtonColor: '#27ae60'
-    });
-    
-    if (teacherId) {
-      const token = getToken();
-      const response = await fetch(`${API_URL}/academic-admin/classes/${classItem._id}/assign-teacher`, {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
-        },
-        body: JSON.stringify({ teacherId })
-      });
-      
-      if (response.ok) {
-        Swal.fire('Success!', 'Teacher assigned to class', 'success');
-        fetchAllData();
-      } else {
-        Swal.fire('Error', 'Failed to assign teacher', 'error');
-      }
-    }
-  };
+
 
   const handleDeleteClass = async (classItem) => {
     const result = await Swal.fire({
@@ -760,55 +745,75 @@ const AcademicAdminDashboard = () => {
           </div>
         )}
 
-        {/* Classes Tab */}
-        {activeTab === 'classes' && (
-          <div style={{ background: 'white', borderRadius: '12px', padding: '1rem', overflowX: 'auto' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '1rem', flexWrap: 'wrap', gap: '10px' }}>
-              <h2>Classes</h2>
-              <button onClick={handleCreateClass} style={{ background: '#3498db', color: 'white', border: 'none', padding: '8px 16px', borderRadius: '6px', cursor: 'pointer' }}>
-                <i className="fas fa-plus"></i> Create Class
-              </button>
-            </div>
-            {classes.length === 0 ? (
-              <p style={{ textAlign: 'center', padding: '40px', color: '#666' }}>No classes yet. Click "Create Class" to create one.</p>
-            ) : (
-              <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: '700px' }}>
-                <thead>
-                  <tr style={{ background: '#1a3a5c', color: 'white' }}>
-                    <th style={{ padding: '10px' }}>Grade</th>
-                    <th style={{ padding: '10px' }}>Class Name</th>
-                    <th style={{ padding: '10px' }}>Academic Year</th>
-                    <th style={{ padding: '10px' }}>Teacher</th>
-                    <th style={{ padding: '10px' }}>Actions</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {classes.map(c => (
-                    <tr key={c._id} style={{ borderBottom: '1px solid #e0e0e0' }}>
-                      <td style={{ padding: '10px' }}>{c.grade}</td>
-                      <td style={{ padding: '10px' }}>{c.className}</td>
-                      <td style={{ padding: '10px' }}>{c.academicYear}</td>
-                      <td style={{ padding: '10px' }}>
-                        {c.teacherId?.fullName || 'Not Assigned'}
-                        {!c.teacherId && (
-                          <button onClick={() => handleAssignTeacher(c)} style={{ marginLeft: '10px', background: '#27ae60', color: 'white', border: 'none', padding: '2px 8px', borderRadius: '4px', cursor: 'pointer', fontSize: '0.7rem' }}>
-                            Assign Teacher
-                          </button>
-                        )}
-                      </td>
-                      <td style={{ padding: '10px' }}>
-                        <button onClick={() => handleDeleteClass(c)} style={{ background: '#e74c3c', color: 'white', border: 'none', padding: '4px 10px', borderRadius: '4px', cursor: 'pointer' }}>
-                          Delete
-                        </button>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            )}
-          </div>
-        )}
-
+      {/* Classes Tab */}
+{activeTab === 'classes' && (
+  <div style={{ background: 'white', borderRadius: '12px', padding: '1rem', overflowX: 'auto' }}>
+    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '1rem', flexWrap: 'wrap', gap: '10px' }}>
+      <h2 style={{ margin: 0 }}>Classes</h2>
+      <button onClick={handleCreateClass} style={{ background: '#3498db', color: 'white', border: 'none', padding: '8px 16px', borderRadius: '6px', cursor: 'pointer' }}>
+        <i className="fas fa-plus"></i> Create Class
+      </button>
+    </div>
+    {classes.length === 0 ? (
+      <p style={{ textAlign: 'center', padding: '40px', color: '#666' }}>No classes yet. Click "Create Class" to create one.</p>
+    ) : (
+      <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: '700px' }}>
+        <thead>
+          <tr style={{ background: '#1a3a5c', color: 'white' }}>
+            <th style={{ padding: '10px' }}>Grade</th>
+            <th style={{ padding: '10px' }}>Class Name</th>
+            <th style={{ padding: '10px' }}>Academic Year</th>
+            <th style={{ padding: '10px' }}>Teacher</th>
+            <th style={{ padding: '10px' }}>Actions</th>
+           </tr>
+        </thead>
+        <tbody>
+          {classes.map(c => (
+            <tr key={c._id} style={{ borderBottom: '1px solid #e0e0e0' }}>
+              <td style={{ padding: '10px' }}>{c.grade} </td>
+              <td style={{ padding: '10px' }}>{c.className} </td>
+              <td style={{ padding: '10px' }}>{c.academicYear} </td>
+              <td style={{ padding: '10px' }}>
+                {c.teacherId?.fullName ? (
+                  <span style={{ color: '#27ae60', fontWeight: '500' }}>
+                    <i className="fas fa-chalkboard-user"></i> {c.teacherId.fullName}
+                  </span>
+                ) : (
+                  <span style={{ color: '#e74c3c' }}>Not Assigned</span>
+                )}
+              </td>
+              <td style={{ padding: '10px' }}>
+                <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+                  <button 
+                    onClick={() => handleAssignTeacher(c)} 
+                    style={{ 
+                      background: c.teacherId ? '#f39c12' : '#27ae60', 
+                      color: 'white', 
+                      border: 'none', 
+                      padding: '4px 10px', 
+                      borderRadius: '4px', 
+                      cursor: 'pointer',
+                      fontSize: '0.75rem'
+                    }}
+                  >
+                    <i className={`fas ${c.teacherId ? 'fa-exchange-alt' : 'fa-user-plus'}`}></i>
+                    {c.teacherId ? ' Change Teacher' : ' Assign Teacher'}
+                  </button>
+                  <button 
+                    onClick={() => handleDeleteClass(c)} 
+                    style={{ background: '#e74c3c', color: 'white', border: 'none', padding: '4px 10px', borderRadius: '4px', cursor: 'pointer', fontSize: '0.75rem' }}
+                  >
+                    <i className="fas fa-trash"></i> Delete
+                  </button>
+                </div>
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    )}
+  </div>
+)}
         {/* News Tab */}
         {activeTab === 'news' && (
           <div style={{ background: 'white', borderRadius: '12px', padding: '1rem' }}>

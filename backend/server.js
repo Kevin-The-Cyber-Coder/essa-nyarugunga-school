@@ -57,7 +57,7 @@ const classSchema = new mongoose.Schema({
   className: String,
   grade: { type: String, enum: ['S1', 'S2', 'S3', 'S4', 'S5', 'S6'] },
   academicYear: String,
-  teacherId: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+  teacherId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null },
   students: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Student' }],
   createdAt: { type: Date, default: Date.now }
 });
@@ -410,7 +410,61 @@ app.delete('/api/academic-admin/classes/:id', authMiddleware, async (req, res) =
   await Class.findByIdAndDelete(req.params.id);
   res.json({ success: true });
 });
-
+// Assign teacher to class - FIXED VERSION
+app.put('/api/academic-admin/classes/:classId/assign-teacher', authMiddleware, async (req, res) => {
+  try {
+    const { teacherId } = req.body;
+    const classId = req.params.classId;
+    
+    console.log('Assign teacher request:', { classId, teacherId });
+    
+    // Find the class
+    const classItem = await Class.findById(classId);
+    if (!classItem) {
+      return res.status(404).json({ message: 'Class not found' });
+    }
+    
+    // Update the teacherId
+    classItem.teacherId = teacherId;
+    await classItem.save();
+    
+    console.log('Class updated:', classItem);
+    
+    // Get teacher details for response
+    let teacherDetails = null;
+    if (teacherId) {
+      const teacher = await User.findById(teacherId).select('fullName');
+      teacherDetails = teacher;
+    }
+    
+    res.json({ 
+      success: true, 
+      message: 'Teacher assigned successfully',
+      class: {
+        ...classItem.toObject(),
+        teacherId: teacherDetails
+      }
+    });
+  } catch (error) {
+    console.error('Assign teacher error:', error);
+    res.status(500).json({ message: error.message });
+  }
+});    // Get teacher details for response
+    const teacher = await User.findById(teacherId).select('fullName');
+    
+    res.json({ 
+      success: true, 
+      message: 'Teacher assigned successfully',
+      class: {
+        ...classItem.toObject(),
+        teacherId: teacher
+      }
+    });
+  } catch (error) {
+    console.error('Assign teacher error:', error);
+    res.status(500).json({ message: error.message });
+  }
+});
 // News
 app.get('/api/academic-admin/news', authMiddleware, async (req, res) => {
   const news = await News.find().sort({ createdAt: -1 });
