@@ -1,22 +1,23 @@
 const mongoose = require('mongoose');
 const bcrypt = require('bcryptjs');
-require('dotenv').config();
+const dotenv = require('dotenv');
+
+dotenv.config();
 
 const resetDatabase = async () => {
   try {
-    await mongoose.connect(process.env.MONGODB_URI || 'mongodb://127.0.0.1:27017/essa_school');
-    console.log('Connected to MongoDB');
-    
+    const MONGODB_URI = process.env.MONGODB_URI || 'mongodb://127.0.0.1:27017/essa_school';
+    await mongoose.connect(MONGODB_URI);
+    console.log('✅ Connected to MongoDB');
+
     const db = mongoose.connection.db;
-    
-    // Drop all collections
     const collections = await db.listCollections().toArray();
+    
     for (const collection of collections) {
       await db.collection(collection.name).drop();
-      console.log(`Dropped: ${collection.name}`);
+      console.log(`🗑️ Dropped: ${collection.name}`);
     }
-    
-    // Create Super Admin
+
     const hashedPassword = await bcrypt.hash('admin123', 10);
     await db.collection('users').insertOne({
       fullName: 'Super Administrator',
@@ -27,11 +28,12 @@ const resetDatabase = async () => {
       isActive: true,
       createdAt: new Date()
     });
-    
-    console.log('\n✅ Super Admin Created!');
-    console.log('Email: admin@essa.rw');
-    console.log('Password: admin123\n');
-    
+
+    console.log('\n✅ Database Reset Complete!');
+    console.log('📧 Email: admin@essa.rw');
+    console.log('🔑 Password: admin123');
+    console.log('👑 Role: super_admin\n');
+
     await mongoose.disconnect();
     process.exit(0);
   } catch (error) {
