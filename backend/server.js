@@ -22,142 +22,95 @@ app.use(express.json());
 
 // User Schema
 const userSchema = new mongoose.Schema({
-  fullName: { type: String, required: true },
-  email: { type: String, required: true, unique: true },
-  password: { type: String, required: true },
-  role: { 
-    type: String, 
-    enum: ['super_admin', 'academic_admin', 'discipline_admin', 'accounts_admin', 'teacher', 'student', 'parent'], 
-    required: true 
-  },
-  phone: { type: String, default: '' },
+  fullName: String,
+  email: { type: String, unique: true },
+  password: String,
+  role: { type: String, enum: ['super_admin', 'academic_admin', 'discipline_admin', 'accounts_admin', 'teacher', 'student', 'parent'] },
+  phone: String,
   isActive: { type: Boolean, default: true },
   createdBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
   createdAt: { type: Date, default: Date.now }
 });
 
-// Teacher Profile Schema
-const teacherProfileSchema = new mongoose.Schema({
-  userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
-  fullName: { type: String, required: true },
-  email: { type: String, required: true },
-  subject: { type: String, default: 'General' },
-  phone: { type: String, default: '' },
-  createdAt: { type: Date, default: Date.now }
-});
-
-// Student Schema
-const studentSchema = new mongoose.Schema({
-  userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
-  studentId: { type: String, required: true, unique: true },
-  fullName: { type: String, required: true },
-  email: { type: String, required: true },
-  classId: { type: mongoose.Schema.Types.ObjectId, ref: 'Class' },
-  teacherId: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
-  parentName: { type: String, default: '' },
-  parentPhone: { type: String, default: '' },
-  enrollmentDate: { type: Date, default: Date.now }
-});
-
-// Class Schema
-const classSchema = new mongoose.Schema({
-  className: { type: String, required: true },
-  grade: { type: String, enum: ['S1', 'S2', 'S3', 'S4', 'S5', 'S6'], required: true },
-  academicYear: { type: String, required: true },
-  teacherId: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
-  students: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Student' }],
-  createdAt: { type: Date, default: Date.now }
-});
-
-// News Schema
-const newsSchema = new mongoose.Schema({
+// Announcement Schema
+const announcementSchema = new mongoose.Schema({
   title: { type: String, required: true },
-  summary: { type: String, required: true },
-  content: { type: String, default: '' },
-  image: { type: String, default: '' },
-  category: { type: String, enum: ['news', 'event', 'announcement'], default: 'news' },
-  date: { type: Date, default: Date.now },
+  content: { type: String, required: true },
+  audience: { type: [String], default: ['all'] },
+  priority: { type: String, enum: ['normal', 'high', 'urgent'], default: 'normal' },
+  createdBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+  isActive: { type: Boolean, default: true },
   createdAt: { type: Date, default: Date.now }
 });
 
-// Gallery Schema
-const gallerySchema = new mongoose.Schema({
-  title: { type: String, required: true },
-  image: { type: String, required: true },
-  category: { type: String, default: 'general' },
-  date: { type: Date, default: Date.now }
+// Discipline Case Schema
+const disciplineSchema = new mongoose.Schema({
+  studentId: { type: mongoose.Schema.Types.ObjectId, ref: 'Student' },
+  studentName: String,
+  reportedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+  reporterName: String,
+  category: String,
+  description: String,
+  action: String,
+  actionDetails: String,
+  status: { type: String, enum: ['pending', 'reviewed', 'resolved'], default: 'pending' },
+  reviewedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+  reviewedAt: Date,
+  createdAt: { type: Date, default: Date.now }
+});
+
+// Permission Schema
+const permissionSchema = new mongoose.Schema({
+  requesterId: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+  requesterName: String,
+  requesterRole: String,
+  type: { type: String, enum: ['leave', 'early_dismissal', 'sports', 'event', 'other'] },
+  reason: String,
+  fromDate: Date,
+  toDate: Date,
+  status: { type: String, enum: ['pending', 'approved', 'rejected'], default: 'pending' },
+  reviewedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+  reviewedAt: Date,
+  rejectionReason: String,
+  createdAt: { type: Date, default: Date.now }
 });
 
 // Message Schema
 const messageSchema = new mongoose.Schema({
-  senderId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
-  senderName: { type: String, required: true },
-  senderRole: { type: String, required: true },
-  receiverId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
-  receiverName: { type: String, required: true },
-  receiverRole: { type: String, required: true },
-  content: { type: String, required: true },
+  senderId: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+  senderName: String,
+  senderRole: String,
+  receiverId: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+  receiverName: String,
+  receiverRole: String,
+  content: String,
   isRead: { type: Boolean, default: false },
   createdAt: { type: Date, default: Date.now }
 });
 
-// Assignment Schema
-const assignmentSchema = new mongoose.Schema({
-  title: { type: String, required: true },
-  description: String,
-  subject: { type: String, required: true },
-  classId: { type: mongoose.Schema.Types.ObjectId, ref: 'Class', required: true },
-  teacherId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
-  dueDate: Date,
-  totalPoints: { type: Number, default: 100 },
-  submissions: [{
-    studentId: { type: mongoose.Schema.Types.ObjectId, ref: 'Student' },
-    submittedAt: Date,
-    content: String,
-    score: Number,
-    status: { type: String, default: 'pending' }
-  }],
-  createdAt: { type: Date, default: Date.now }
-});
-
-// Attendance Schema
-const attendanceSchema = new mongoose.Schema({
-  studentId: { type: mongoose.Schema.Types.ObjectId, ref: 'Student', required: true },
-  classId: { type: mongoose.Schema.Types.ObjectId, ref: 'Class', required: true },
-  date: { type: Date, required: true },
-  status: { type: String, enum: ['Present', 'Absent', 'Late'], required: true },
-  teacherId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true }
-});
-
 // Models
 const User = mongoose.model('User', userSchema);
-const TeacherProfile = mongoose.model('TeacherProfile', teacherProfileSchema);
-const Student = mongoose.model('Student', studentSchema);
-const Class = mongoose.model('Class', classSchema);
-const News = mongoose.model('News', newsSchema);
-const Gallery = mongoose.model('Gallery', gallerySchema);
+const Announcement = mongoose.model('Announcement', announcementSchema);
+const Discipline = mongoose.model('Discipline', disciplineSchema);
+const Permission = mongoose.model('Permission', permissionSchema);
 const Message = mongoose.model('Message', messageSchema);
-const Assignment = mongoose.model('Assignment', assignmentSchema);
-const Attendance = mongoose.model('Attendance', attendanceSchema);
 
 // ==================== MIDDLEWARE ====================
 const authMiddleware = async (req, res, next) => {
   const token = req.headers.authorization?.split(' ')[1];
-  if (!token) return res.status(401).json({ message: 'No token provided' });
+  if (!token) {
+    return res.status(401).json({ message: 'No token provided' });
+  }
   try {
     const decoded = jwt.verify(token, process.env.JWT_SECRET || 'secretkey');
     req.userId = decoded.id;
     req.userRole = decoded.role;
     next();
   } catch (error) {
+    console.error('Auth error:', error.message);
     return res.status(401).json({ message: 'Invalid token' });
   }
 };
-
-// ==================== DATABASE CONNECTION ====================
-mongoose.connect(process.env.MONGODB_URI || 'mongodb://127.0.0.1:27017/essa_school')
-  .then(() => console.log('✅ MongoDB Connected'))
-  .catch(err => console.error('MongoDB Error:', err.message));
 
 // ==================== SOCKET.IO ====================
 io.on('connection', (socket) => {
@@ -169,6 +122,12 @@ io.on('connection', (socket) => {
   socket.on('disconnect', () => console.log('🔌 Client disconnected:', socket.id));
 });
 
+// ==================== DATABASE CONNECTION ====================
+const MONGODB_URI = process.env.MONGODB_URI || 'mongodb://127.0.0.1:27017/essa_school';
+mongoose.connect(MONGODB_URI)
+  .then(() => console.log('✅ MongoDB Connected'))
+  .catch(err => console.error('MongoDB Error:', err.message));
+
 // ==================== AUTH ROUTES ====================
 app.post('/api/auth/login', async (req, res) => {
   try {
@@ -176,101 +135,170 @@ app.post('/api/auth/login', async (req, res) => {
     console.log('Login attempt:', { email, role });
     
     const user = await User.findOne({ email });
-    if (!user) return res.status(401).json({ message: 'Invalid credentials' });
-    if (user.role !== role) return res.status(401).json({ message: 'Invalid role' });
+    if (!user) {
+      console.log('User not found:', email);
+      return res.status(401).json({ message: 'Invalid credentials' });
+    }
+    
+    if (user.role !== role) {
+      console.log('Role mismatch:', { expected: role, actual: user.role });
+      return res.status(401).json({ message: 'Invalid role' });
+    }
     
     const isMatch = await bcrypt.compare(password, user.password);
-    if (!isMatch) return res.status(401).json({ message: 'Invalid credentials' });
+    if (!isMatch) {
+      console.log('Password mismatch');
+      return res.status(401).json({ message: 'Invalid credentials' });
+    }
     
-    const token = jwt.sign({ id: user._id, role: user.role, name: user.fullName }, process.env.JWT_SECRET || 'secretkey', { expiresIn: '7d' });
-    res.json({ success: true, _id: user._id, fullName: user.fullName, email: user.email, role: user.role, token });
+    const token = jwt.sign(
+      { id: user._id, role: user.role, name: user.fullName },
+      process.env.JWT_SECRET || 'secretkey',
+      { expiresIn: '7d' }
+    );
+    
+    console.log('Login successful:', email);
+    res.json({
+      success: true,
+      _id: user._id,
+      fullName: user.fullName,
+      email: user.email,
+      role: user.role,
+      token
+    });
   } catch (error) {
+    console.error('Login error:', error);
     res.status(500).json({ message: error.message });
   }
 });
 
 // ==================== SUPER ADMIN ROUTES ====================
+
+// Create sub-admin
 app.post('/api/super-admin/create-admin', authMiddleware, async (req, res) => {
   try {
     const currentUser = await User.findById(req.userId);
-    if (currentUser.role !== 'super_admin') return res.status(403).json({ message: 'Access denied' });
+    if (!currentUser || currentUser.role !== 'super_admin') {
+      return res.status(403).json({ message: 'Access denied. Super admin only.' });
+    }
     
     const { fullName, email, password, phone, role } = req.body;
-    const allowedRoles = ['academic_admin', 'discipline_admin', 'accounts_admin'];
-    if (!allowedRoles.includes(role)) return res.status(400).json({ message: 'Invalid role' });
-    
-    const existingUser = await User.findOne({ email });
-    if (existingUser) return res.status(400).json({ message: 'Email already exists' });
+    const existing = await User.findOne({ email });
+    if (existing) {
+      return res.status(400).json({ message: 'Email already exists' });
+    }
     
     const hashedPassword = await bcrypt.hash(password || 'admin123', 10);
-    const newAdmin = new User({ fullName, email, password: hashedPassword, role, phone: phone || '', createdBy: req.userId });
+    const newAdmin = new User({
+      fullName,
+      email,
+      password: hashedPassword,
+      role,
+      phone: phone || '',
+      createdBy: req.userId,
+      isActive: true
+    });
     await newAdmin.save();
     
-    res.json({ success: true, message: `${role} created`, user: { _id: newAdmin._id, fullName, email, role } });
+    res.json({
+      success: true,
+      message: `${role} created successfully`,
+      user: { _id: newAdmin._id, fullName, email, role }
+    });
+  } catch (error) {
+    console.error('Create admin error:', error);
+    res.status(500).json({ message: error.message });
+  }
+});
+
+// Get all admins
+app.get('/api/super-admin/admins', authMiddleware, async (req, res) => {
+  try {
+    const currentUser = await User.findById(req.userId);
+    if (!currentUser || currentUser.role !== 'super_admin') {
+      return res.status(403).json({ message: 'Access denied' });
+    }
+    
+    const admins = await User.find({
+      role: { $in: ['academic_admin', 'discipline_admin', 'accounts_admin'] }
+    }).select('-password');
+    res.json(admins);
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
 });
 
-app.get('/api/super-admin/admins', authMiddleware, async (req, res) => {
-  const currentUser = await User.findById(req.userId);
-  if (currentUser.role !== 'super_admin') return res.status(403).json({ message: 'Access denied' });
-  const admins = await User.find({ role: { $in: ['academic_admin', 'discipline_admin', 'accounts_admin'] } }).select('-password');
-  res.json(admins);
+// Delete admin
+app.delete('/api/super-admin/admins/:id', authMiddleware, async (req, res) => {
+  try {
+    await User.findByIdAndDelete(req.params.id);
+    res.json({ success: true });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
 });
 
+// Create announcement
+app.post('/api/super-admin/announcements', authMiddleware, async (req, res) => {
+  try {
+    const { title, content, audience, priority } = req.body;
+    const announcement = new Announcement({
+      title,
+      content,
+      audience: audience || ['all'],
+      priority: priority || 'normal',
+      createdBy: req.userId
+    });
+    await announcement.save();
+    res.json({ success: true, announcement });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+});
 
-// Get all discipline cases
+// Get all announcements
+app.get('/api/super-admin/announcements', authMiddleware, async (req, res) => {
+  try {
+    const announcements = await Announcement.find().sort({ createdAt: -1 });
+    res.json(announcements);
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+});
+
+// Delete announcement
+app.delete('/api/super-admin/announcements/:id', authMiddleware, async (req, res) => {
+  try {
+    await Announcement.findByIdAndDelete(req.params.id);
+    res.json({ success: true });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+});
+
+// Get discipline cases
 app.get('/api/super-admin/discipline-cases', authMiddleware, async (req, res) => {
   try {
-    const currentUser = await User.findById(req.userId);
-    if (currentUser.role !== 'super_admin') {
-      return res.status(403).json({ message: 'Access denied' });
-    }
-    
-    const Discipline = mongoose.model('Discipline', new mongoose.Schema({
-      studentId: { type: mongoose.Schema.Types.ObjectId, ref: 'Student' },
-      reportedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
-      category: String,
-      description: String,
-      action: String,
-      status: { type: String, enum: ['pending', 'reviewed', 'resolved'], default: 'pending' },
-      createdAt: { type: Date, default: Date.now }
-    }));
-    
-    const cases = await Discipline.find()
-      .populate('studentId', 'fullName studentId')
-      .populate('reportedBy', 'fullName')
-      .sort({ createdAt: -1 });
-    
+    const cases = await Discipline.find().sort({ createdAt: -1 });
     const stats = {
       total: cases.length,
       pending: cases.filter(c => c.status === 'pending').length,
       resolved: cases.filter(c => c.status === 'resolved').length,
       byCategory: {}
     };
-    
     cases.forEach(c => {
       stats.byCategory[c.category] = (stats.byCategory[c.category] || 0) + 1;
     });
-    
     res.json({ cases, stats });
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
 });
 
-// Update discipline case (punish, suspend, expel)
+// Update discipline case
 app.put('/api/super-admin/discipline-cases/:id', authMiddleware, async (req, res) => {
   try {
-    const currentUser = await User.findById(req.userId);
-    if (currentUser.role !== 'super_admin') {
-      return res.status(403).json({ message: 'Access denied' });
-    }
-    
     const { action, actionDetails, status } = req.body;
-    const Discipline = mongoose.model('Discipline');
-    
     const disciplineCase = await Discipline.findById(req.params.id);
     if (!disciplineCase) {
       return res.status(404).json({ message: 'Case not found' });
@@ -283,54 +311,36 @@ app.put('/api/super-admin/discipline-cases/:id', authMiddleware, async (req, res
     disciplineCase.reviewedAt = new Date();
     await disciplineCase.save();
     
-    // If suspension or expulsion, update student status
-    if (action === 'suspension' || action === 'expulsion') {
-      const Student = mongoose.model('Student');
-      await Student.findByIdAndUpdate(disciplineCase.studentId, { isActive: false });
-    }
-    
-    res.json({ success: true, message: `Case ${status} with action: ${action}` });
+    res.json({ success: true });
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
 });
 
-// Get all permissions
+// Get permissions
 app.get('/api/super-admin/permissions', authMiddleware, async (req, res) => {
   try {
-    const currentUser = await User.findById(req.userId);
-    if (currentUser.role !== 'super_admin') {
-      return res.status(403).json({ message: 'Access denied' });
-    }
-    
-    const Permission = mongoose.model('Permission', new mongoose.Schema({
-      requesterId: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
-      requesterName: String,
-      requesterRole: String,
-      type: String,
-      reason: String,
-      fromDate: Date,
-      toDate: Date,
-      status: { type: String, enum: ['pending', 'approved', 'rejected'], default: 'pending' },
-      createdAt: { type: Date, default: Date.now }
-    }));
-    
-    const permissions = await Permission.find()
-      .populate('requesterId', 'fullName')
-      .sort({ createdAt: -1 });
-    
-    res.json(permissions);
+    const permissions = await Permission.find().sort({ createdAt: -1 });
+    const trends = {
+      total: permissions.length,
+      approved: permissions.filter(p => p.status === 'approved').length,
+      rejected: permissions.filter(p => p.status === 'rejected').length,
+      pending: permissions.filter(p => p.status === 'pending').length,
+      byType: {}
+    };
+    permissions.forEach(p => {
+      trends.byType[p.type] = (trends.byType[p.type] || 0) + 1;
+    });
+    res.json({ permissions, trends });
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
 });
 
-// Update permission status
+// Update permission
 app.put('/api/super-admin/permissions/:id', authMiddleware, async (req, res) => {
   try {
     const { status, rejectionReason } = req.body;
-    const Permission = mongoose.model('Permission');
-    
     const permission = await Permission.findById(req.params.id);
     if (!permission) {
       return res.status(404).json({ message: 'Permission not found' });
@@ -342,273 +352,7 @@ app.put('/api/super-admin/permissions/:id', authMiddleware, async (req, res) => 
     if (rejectionReason) permission.rejectionReason = rejectionReason;
     await permission.save();
     
-    res.json({ success: true, message: `Permission ${status}` });
-  } catch (error) {
-    res.status(500).json({ message: error.message });
-  }
-});
-
-// Get permission trends
-app.get('/api/super-admin/permissions/trends', authMiddleware, async (req, res) => {
-  try {
-    const Permission = mongoose.model('Permission');
-    const permissions = await Permission.find();
-    
-    const trends = {
-      total: permissions.length,
-      approved: permissions.filter(p => p.status === 'approved').length,
-      rejected: permissions.filter(p => p.status === 'rejected').length,
-      pending: permissions.filter(p => p.status === 'pending').length,
-      byType: {}
-    };
-    
-    permissions.forEach(p => {
-      trends.byType[p.type] = (trends.byType[p.type] || 0) + 1;
-    });
-    
-    res.json(trends);
-  } catch (error) {
-    res.status(500).json({ message: error.message });
-  }
-});
-
-// ==================== ACADEMIC ADMIN ROUTES ====================
-
-// Get all teachers
-app.get('/api/academic-admin/teachers', authMiddleware, async (req, res) => {
-  try {
-    const teachers = await TeacherProfile.find();
-    res.json(teachers);
-  } catch (error) {
-    res.status(500).json({ message: error.message });
-  }
-});
-
-// Create teacher
-app.post('/api/academic-admin/create-teacher', authMiddleware, async (req, res) => {
-  try {
-    const { fullName, email, password, phone, subject } = req.body;
-    console.log('Creating teacher:', { fullName, email, subject });
-    
-    // Check if user exists
-    const existingUser = await User.findOne({ email });
-    if (existingUser) {
-      return res.status(400).json({ message: 'Email already exists' });
-    }
-    
-    // Create user account
-    const hashedPassword = await bcrypt.hash(password || 'teacher123', 10);
-    const user = new User({
-      fullName,
-      email,
-      password: hashedPassword,
-      role: 'teacher',
-      phone: phone || '',
-      createdBy: req.userId,
-      isActive: true
-    });
-    await user.save();
-    
-    // Create teacher profile
-    const teacher = new TeacherProfile({
-      userId: user._id,
-      fullName,
-      email,
-      subject: subject || 'General',
-      phone: phone || ''
-    });
-    await teacher.save();
-    
-    res.json({ success: true, message: 'Teacher created', teacher: { _id: teacher._id, fullName, email } });
-  } catch (error) {
-    console.error('Create teacher error:', error);
-    res.status(500).json({ message: error.message });
-  }
-});
-
-// Delete teacher
-app.delete('/api/academic-admin/teachers/:id', authMiddleware, async (req, res) => {
-  try {
-    const teacher = await TeacherProfile.findById(req.params.id);
-    if (teacher) {
-      await User.findByIdAndDelete(teacher.userId);
-      await TeacherProfile.findByIdAndDelete(req.params.id);
-    }
     res.json({ success: true });
-  } catch (error) {
-    res.status(500).json({ message: error.message });
-  }
-});
-
-// Get all classes
-app.get('/api/academic-admin/classes', authMiddleware, async (req, res) => {
-  try {
-    const classes = await Class.find().populate('teacherId', 'fullName');
-    res.json(classes);
-  } catch (error) {
-    res.status(500).json({ message: error.message });
-  }
-});
-
-// Create class
-app.post('/api/academic-admin/classes', authMiddleware, async (req, res) => {
-  try {
-    const { className, grade, academicYear, teacherId } = req.body;
-    const newClass = new Class({ className, grade, academicYear, teacherId: teacherId || null });
-    await newClass.save();
-    res.json({ success: true, class: newClass });
-  } catch (error) {
-    res.status(500).json({ message: error.message });
-  }
-});
-
-// Delete class
-app.delete('/api/academic-admin/classes/:id', authMiddleware, async (req, res) => {
-  try {
-    await Class.findByIdAndDelete(req.params.id);
-    res.json({ success: true });
-  } catch (error) {
-    res.status(500).json({ message: error.message });
-  }
-});
-
-// Get all news
-app.get('/api/academic-admin/news', authMiddleware, async (req, res) => {
-  try {
-    const news = await News.find().sort({ createdAt: -1 });
-    res.json(news);
-  } catch (error) {
-    res.status(500).json({ message: error.message });
-  }
-});
-
-// Create news
-app.post('/api/academic-admin/news', authMiddleware, async (req, res) => {
-  try {
-    const { title, summary, content, image, category } = req.body;
-    const news = new News({ title, summary, content, image, category });
-    await news.save();
-    res.json({ success: true, news });
-  } catch (error) {
-    res.status(500).json({ message: error.message });
-  }
-});
-
-// Delete news
-app.delete('/api/academic-admin/news/:id', authMiddleware, async (req, res) => {
-  try {
-    await News.findByIdAndDelete(req.params.id);
-    res.json({ success: true });
-  } catch (error) {
-    res.status(500).json({ message: error.message });
-  }
-});
-
-// Get gallery
-app.get('/api/academic-admin/gallery', authMiddleware, async (req, res) => {
-  try {
-    const images = await Gallery.find().sort({ date: -1 });
-    res.json(images);
-  } catch (error) {
-    res.status(500).json({ message: error.message });
-  }
-});
-
-// Add gallery image
-app.post('/api/academic-admin/gallery', authMiddleware, async (req, res) => {
-  try {
-    const { title, image, category } = req.body;
-    const gallery = new Gallery({ title, image, category });
-    await gallery.save();
-    res.json({ success: true, gallery });
-  } catch (error) {
-    res.status(500).json({ message: error.message });
-  }
-});
-
-// Delete gallery image
-app.delete('/api/academic-admin/gallery/:id', authMiddleware, async (req, res) => {
-  try {
-    await Gallery.findByIdAndDelete(req.params.id);
-    res.json({ success: true });
-  } catch (error) {
-    res.status(500).json({ message: error.message });
-  }
-});
-
-// ==================== TEACHER ROUTES ====================
-app.get('/api/teacher/students', authMiddleware, async (req, res) => {
-  try {
-    const students = await Student.find({ teacherId: req.userId });
-    res.json(students);
-  } catch (error) {
-    res.status(500).json({ message: error.message });
-  }
-});
-
-app.get('/api/teacher/classes', authMiddleware, async (req, res) => {
-  try {
-    const classes = await Class.find({ teacherId: req.userId });
-    res.json(classes);
-  } catch (error) {
-    res.status(500).json({ message: error.message });
-  }
-});
-
-app.post('/api/teacher/create-student', authMiddleware, async (req, res) => {
-  try {
-    const { fullName, email, password, studentId, classId, parentName, parentPhone } = req.body;
-    
-    const existingUser = await User.findOne({ email });
-    if (existingUser) return res.status(400).json({ message: 'Email exists' });
-    
-    const hashedPassword = await bcrypt.hash(password, 10);
-    const user = new User({ fullName, email, password: hashedPassword, role: 'student', createdBy: req.userId });
-    await user.save();
-    
-    const student = new Student({
-      userId: user._id,
-      studentId: studentId || `STU${Date.now()}`,
-      fullName,
-      email,
-      classId,
-      teacherId: req.userId,
-      parentName: parentName || '',
-      parentPhone: parentPhone || ''
-    });
-    await student.save();
-    
-    await Class.findByIdAndUpdate(classId, { $push: { students: student._id } });
-    
-    res.json({ success: true, student: { _id: student._id, fullName, email, password } });
-  } catch (error) {
-    res.status(500).json({ message: error.message });
-  }
-});
-
-app.delete('/api/teacher/students/:id', authMiddleware, async (req, res) => {
-  try {
-    const student = await Student.findById(req.params.id);
-    if (student) {
-      await Class.findByIdAndUpdate(student.classId, { $pull: { students: student._id } });
-      await User.findByIdAndDelete(student.userId);
-      await Student.findByIdAndDelete(req.params.id);
-    }
-    res.json({ success: true });
-  } catch (error) {
-    res.status(500).json({ message: error.message });
-  }
-});
-
-app.post('/api/teacher/students/:id/reset-password', authMiddleware, async (req, res) => {
-  try {
-    const { newPassword } = req.body;
-    const student = await Student.findById(req.params.id);
-    if (student) {
-      const hashedPassword = await bcrypt.hash(newPassword, 10);
-      await User.findByIdAndUpdate(student.userId, { password: hashedPassword });
-    }
-    res.json({ success: true, newPassword });
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
@@ -642,7 +386,10 @@ app.get('/api/messages/user/:userId', authMiddleware, async (req, res) => {
       ]
     }).sort({ createdAt: 1 });
     
-    await Message.updateMany({ senderId: req.params.userId, receiverId: req.userId, isRead: false }, { $set: { isRead: true } });
+    await Message.updateMany(
+      { senderId: req.params.userId, receiverId: req.userId, isRead: false },
+      { $set: { isRead: true } }
+    );
     res.json(messages);
   } catch (error) {
     res.status(500).json({ message: error.message });
@@ -655,9 +402,17 @@ app.post('/api/messages/send', authMiddleware, async (req, res) => {
     const sender = await User.findById(req.userId);
     const receiver = await User.findById(receiverId);
     
+    if (!sender || !receiver) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+    
     const message = new Message({
-      senderId: req.userId, senderName: sender.fullName, senderRole: sender.role,
-      receiverId, receiverName: receiver.fullName, receiverRole: receiver.role,
+      senderId: req.userId,
+      senderName: sender.fullName,
+      senderRole: sender.role,
+      receiverId,
+      receiverName: receiver.fullName,
+      receiverRole: receiver.role,
       content
     });
     await message.save();
@@ -667,6 +422,11 @@ app.post('/api/messages/send', authMiddleware, async (req, res) => {
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
+});
+
+// ==================== HEALTH CHECK ====================
+app.get('/api/health', (req, res) => {
+  res.json({ status: 'OK', timestamp: new Date().toISOString() });
 });
 
 // ==================== CREATE DEFAULT SUPER ADMIN ====================
@@ -692,13 +452,9 @@ const createDefaultSuperAdmin = async () => {
   }
 };
 
-// ==================== HEALTH CHECK ====================
-app.get('/api/health', (req, res) => {
-  res.json({ status: 'OK', timestamp: new Date().toISOString() });
-});
-
 // ==================== START SERVER ====================
 const PORT = process.env.PORT || 5000;
+
 createDefaultSuperAdmin().then(() => {
   server.listen(PORT, () => {
     console.log(`\n🚀 Server running on http://localhost:${PORT}`);
