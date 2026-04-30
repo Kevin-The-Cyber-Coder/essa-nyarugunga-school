@@ -79,23 +79,31 @@ const SuperAdminDashboard = () => {
   const fetchAllData = async () => {
     const token = getToken();
     try {
-      const [adminsRes, announcementsRes, casesRes, permissionsRes, trendsRes] = await Promise.all([
+      const [adminsRes, announcementsRes, casesRes, permissionsRes] = await Promise.all([
         fetch(`${API_URL}/super-admin/admins`, { headers: { 'Authorization': `Bearer ${token}` } }),
         fetch(`${API_URL}/super-admin/announcements`, { headers: { 'Authorization': `Bearer ${token}` } }),
         fetch(`${API_URL}/super-admin/discipline-cases`, { headers: { 'Authorization': `Bearer ${token}` } }),
-        fetch(`${API_URL}/super-admin/permissions`, { headers: { 'Authorization': `Bearer ${token}` } }),
-        fetch(`${API_URL}/super-admin/permissions/trends`, { headers: { 'Authorization': `Bearer ${token}` } })
+        fetch(`${API_URL}/super-admin/permissions`, { headers: { 'Authorization': `Bearer ${token}` } })
       ]);
       
-      if (adminsRes.ok) setAdmins(await adminsRes.json());
-      if (announcementsRes.ok) setAnnouncements(await announcementsRes.json());
+      if (adminsRes.ok) {
+        const data = await adminsRes.json();
+        setAdmins(data);
+      }
+      if (announcementsRes.ok) {
+        const data = await announcementsRes.json();
+        setAnnouncements(data);
+      }
       if (casesRes.ok) {
         const data = await casesRes.json();
         setDisciplineCases(data.cases || []);
         setDisciplineStats(data.stats || {});
       }
-      if (permissionsRes.ok) setPermissions(await permissionsRes.json());
-      if (trendsRes.ok) setPermissionTrends(await trendsRes.json());
+      if (permissionsRes.ok) {
+        const data = await permissionsRes.json();
+        setPermissions(data.permissions || []);
+        setPermissionTrends(data.trends || {});
+      }
     } catch (error) {
       console.error('Error fetching data:', error);
     } finally {
@@ -305,10 +313,10 @@ const SuperAdminDashboard = () => {
     }
   };
 
-  // Handle Discipline Case (Punish/Suspend/Expel)
+  // Handle Discipline Case
   const handleDisciplineAction = async (disciplineCase) => {
     const { value: action } = await Swal.fire({
-      title: `Action for ${disciplineCase.studentId?.fullName || 'Student'}`,
+      title: `Action for ${disciplineCase.studentName || 'Student'}`,
       text: disciplineCase.description,
       input: 'select',
       inputOptions: {
@@ -476,7 +484,7 @@ const SuperAdminDashboard = () => {
         background: 'linear-gradient(180deg, #1a3a5c 0%, #0d2b42 100%)',
         color: 'white', position: 'fixed', left: 0, top: 0, bottom: 0,
         transition: 'width 0.3s ease', overflow: 'hidden', display: 'flex',
-        flexDirection: 'column', zIndex: 999, boxShadow: '2px 0 10px rgba(0,0,0,0.1)'
+        flexDirection: 'column', zIndex: 999
       }}>
         <div style={{ padding: sidebarCollapsed ? '1rem 0' : '1.5rem', textAlign: 'center', borderBottom: '1px solid rgba(255,255,255,0.1)' }}>
           {!sidebarCollapsed && (
@@ -503,8 +511,7 @@ const SuperAdminDashboard = () => {
                 display: 'flex', alignItems: 'center', justifyContent: sidebarCollapsed ? 'center' : 'flex-start',
                 gap: '12px', width: '100%', padding: sidebarCollapsed ? '12px' : '12px 20px',
                 background: activeTab === item.id ? 'rgba(255,255,255,0.15)' : 'transparent',
-                border: 'none', color: 'white', cursor: 'pointer', fontSize: '0.9rem',
-                transition: 'all 0.3s ease'
+                border: 'none', color: 'white', cursor: 'pointer', fontSize: '0.9rem'
               }}>
               <i className={item.icon} style={{ width: '20px', color: item.color }}></i>
               {!sidebarCollapsed && <span>{item.label}</span>}
@@ -597,8 +604,7 @@ const SuperAdminDashboard = () => {
 
             <div style={{ background: 'white', borderRadius: '12px', padding: '1rem' }}>
               <h3>Quick Stats</h3>
-             <div style={{ display: 'grid', gridTemplateColumns: `repeat(auto-fit, minmax(150px, 1fr))`, gap: '1rem', marginTop: '1rem' }}>
-                <div style={{ textAlign: 'center', padding: '10px', background: '#f8f9fa', borderRadius: '8px' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: `repeat(auto-fit, minmax(150px, 1fr))`, gap: '1rem', marginTop: '1rem' }}> <div style={{ textAlign: 'center', padding: '10px', background: '#f8f9fa', borderRadius: '8px' }}>
                   <div style={{ fontWeight: 'bold', color: '#e74c3c' }}>{disciplineStats.pending || 0}</div>
                   <div style={{ fontSize: '0.8rem' }}>Pending Cases</div>
                 </div>
@@ -615,7 +621,7 @@ const SuperAdminDashboard = () => {
           </div>
         )}
 
-        {/* Admins Tab */}
+        {/* Admins Tab - Similar to before */}
         {activeTab === 'admins' && (
           <div style={{ background: 'white', borderRadius: '12px', padding: '1rem', overflowX: 'auto' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '1rem', flexWrap: 'wrap', gap: '10px' }}>
@@ -636,28 +642,18 @@ const SuperAdminDashboard = () => {
               </thead>
               <tbody>
                 {admins.map(admin => (
-  <tr key={admin._id} style={{ borderBottom: '1px solid #e0e0e0' }}>
-    <td style={{ padding: '12px' }}>{admin.fullName}</td>
-    <td style={{ padding: '12px' }}>{admin.email}</td>
-    <td style={{ padding: '12px' }}>{admin.role}</td>
-    <td style={{ padding: '12px' }}>{admin.phone || '-'}</td>
-    <td style={{ padding: '12px' }}>
-      <button
-        onClick={() => handleDeleteAdmin(admin)}
-        style={{
-          background: '#e74c3c',
-          color: 'white',
-          border: 'none',
-          padding: '4px 10px',
-          borderRadius: '4px',
-          cursor: 'pointer'
-        }}
-      >
-        Delete
-      </button>
-    </td>
-  </tr>
-))}
+                  <tr key={admin._id} style={{ borderBottom: '1px solid #e0e0e0' }}>
+                    <td style={{ padding: '12px' }}>{admin.fullName}</td>
+                    <td style={{ padding: '12px' }}>{admin.email}</td>
+                    <td style={{ padding: '12px' }}>{admin.role}</td>
+                    <td style={{ padding: '12px' }}>{admin.phone || '-'}</td>
+                    <td style={{ padding: '12px' }}>
+                      <button onClick={() => handleDeleteAdmin(admin)} style={{ background: '#e74c3c', color: 'white', border: 'none', padding: '4px 10px', borderRadius: '4px', cursor: 'pointer' }}>
+                        Delete
+                      </button>
+                    </td>
+                  </tr>
+                ))}
               </tbody>
             </table>
           </div>
@@ -683,9 +679,6 @@ const SuperAdminDashboard = () => {
                     }}>
                       {ann.priority}
                     </span>
-                    <span style={{ marginLeft: '8px', background: '#e8f4fd', padding: '2px 8px', borderRadius: '4px', fontSize: '0.7rem' }}>
-                      {ann.audience?.join(', ') || 'all'}
-                    </span>
                   </div>
                   <button onClick={() => handleDeleteAnnouncement(ann._id)} style={{ background: '#e74c3c', color: 'white', border: 'none', padding: '6px 12px', borderRadius: '4px', cursor: 'pointer' }}>
                     Delete
@@ -697,9 +690,6 @@ const SuperAdminDashboard = () => {
                 </div>
               </div>
             ))}
-            {announcements.length === 0 && (
-              <p style={{ textAlign: 'center', padding: '40px', color: '#666' }}>No announcements yet. Click "Post Announcement" to create one.</p>
-            )}
           </div>
         )}
 
@@ -707,49 +697,25 @@ const SuperAdminDashboard = () => {
         {activeTab === 'discipline' && (
           <div style={{ background: 'white', borderRadius: '12px', padding: '1rem', overflowX: 'auto' }}>
             <h2 style={{ marginBottom: '1rem' }}>Discipline Cases</h2>
-            {disciplineCases.length === 0 ? (
+            {disciplineCases.map(c => (
+              <div key={c._id} style={{ padding: '1rem', borderBottom: '1px solid #e0e0e0', marginBottom: '0.5rem' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <div>
+                    <strong>{c.studentName || 'Student'}</strong> - {c.category}
+                    <p style={{ margin: '5px 0 0', color: '#666', fontSize: '0.85rem' }}>{c.description}</p>
+                  </div>
+                  {c.status === 'pending' ? (
+                    <button onClick={() => handleDisciplineAction(c)} style={{ background: '#e74c3c', color: 'white', border: 'none', padding: '6px 12px', borderRadius: '4px', cursor: 'pointer' }}>
+                      Take Action
+                    </button>
+                  ) : (
+                    <span style={{ color: '#27ae60' }}>✓ {c.action}</span>
+                  )}
+                </div>
+              </div>
+            ))}
+            {disciplineCases.length === 0 && (
               <p style={{ textAlign: 'center', padding: '40px', color: '#666' }}>No discipline cases reported.</p>
-            ) : (
-              <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: '700px' }}>
-                <thead>
-                  <tr style={{ background: '#1a3a5c', color: 'white' }}>
-                    <th style={{ padding: '10px' }}>Student</th>
-                    <th style={{ padding: '10px' }}>Category</th>
-                    <th style={{ padding: '10px' }}>Description</th>
-                    <th style={{ padding: '10px' }}>Reported By</th>
-                    <th style={{ padding: '10px' }}>Status</th>
-                    <th style={{ padding: '10px' }}>Action</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {disciplineCases.map(c => (
-                    <tr key={c._id} style={{ borderBottom: '1px solid #e0e0e0' }}>
-                      <td style={{ padding: '10px' }}>{c.studentId?.fullName || 'N/A'}<br/><small>{c.studentId?.studentId}</small></td>
-                      <td style={{ padding: '10px' }}>{c.category}</td>
-                      <td style={{ padding: '10px' }}>{c.description}</td>
-                      <td style={{ padding: '10px' }}>{c.reportedBy?.fullName || 'N/A'}</td>
-                      <td style={{ padding: '10px' }}>
-                        <span style={{ 
-                          background: c.status === 'pending' ? '#fff3cd' : '#d4edda',
-                          color: c.status === 'pending' ? '#856404' : '#155724',
-                          padding: '4px 8px', borderRadius: '20px', fontSize: '0.7rem'
-                        }}>
-                          {c.status}
-                        </span>
-                      </td>
-                      <td style={{ padding: '10px' }}>
-                        {c.status === 'pending' ? (
-                          <button onClick={() => handleDisciplineAction(c)} style={{ background: '#e74c3c', color: 'white', border: 'none', padding: '6px 12px', borderRadius: '4px', cursor: 'pointer' }}>
-                            Take Action
-                          </button>
-                        ) : (
-                          <span style={{ color: '#27ae60' }}>{c.action}</span>
-                        )}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
             )}
           </div>
         )}
@@ -757,53 +723,51 @@ const SuperAdminDashboard = () => {
         {/* Permissions Tab */}
         {activeTab === 'permissions' && (
           <div style={{ background: 'white', borderRadius: '12px', padding: '1rem', overflowX: 'auto' }}>
-            <h2 style={{ marginBottom: '1rem' }}>Permission Requests</h2>
-            {permissions.length === 0 ? (
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
+              <h2>Permission Requests</h2>
+              <div style={{ display: 'flex', gap: '10px' }}>
+                <span style={{ background: '#d4edda', padding: '4px 8px', borderRadius: '4px', fontSize: '0.7rem' }}>
+                  Approved: {permissionTrends.approved || 0}
+                </span>
+                <span style={{ background: '#fff3cd', padding: '4px 8px', borderRadius: '4px', fontSize: '0.7rem' }}>
+                  Pending: {permissionTrends.pending || 0}
+                </span>
+                <span style={{ background: '#f8d7da', padding: '4px 8px', borderRadius: '4px', fontSize: '0.7rem' }}>
+                  Rejected: {permissionTrends.rejected || 0}
+                </span>
+              </div>
+            </div>
+            {permissions.map(p => (
+              <div key={p._id} style={{ padding: '1rem', borderBottom: '1px solid #e0e0e0', marginBottom: '0.5rem' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '10px' }}>
+                  <div>
+                    <strong>{p.requesterName}</strong> ({p.requesterRole})
+                    <p style={{ margin: '5px 0', color: '#666' }}>{p.reason}</p>
+                    <small>{new Date(p.fromDate).toLocaleDateString()} - {new Date(p.toDate).toLocaleDateString()}</small>
+                  </div>
+                  {p.status === 'pending' ? (
+                    <div style={{ display: 'flex', gap: '5px' }}>
+                      <button onClick={() => handlePermissionAction(p, 'approved')} style={{ background: '#27ae60', color: 'white', border: 'none', padding: '4px 12px', borderRadius: '4px', cursor: 'pointer' }}>
+                        Approve
+                      </button>
+                      <button onClick={() => handlePermissionAction(p, 'rejected')} style={{ background: '#e74c3c', color: 'white', border: 'none', padding: '4px 12px', borderRadius: '4px', cursor: 'pointer' }}>
+                        Reject
+                      </button>
+                    </div>
+                  ) : (
+                    <span style={{ 
+                      background: p.status === 'approved' ? '#d4edda' : '#f8d7da',
+                      color: p.status === 'approved' ? '#155724' : '#721c24',
+                      padding: '4px 12px', borderRadius: '4px'
+                    }}>
+                      {p.status}
+                    </span>
+                  )}
+                </div>
+              </div>
+            ))}
+            {permissions.length === 0 && (
               <p style={{ textAlign: 'center', padding: '40px', color: '#666' }}>No permission requests.</p>
-            ) : (
-              <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: '700px' }}>
-                <thead>
-                  <tr style={{ background: '#1a3a5c', color: 'white' }}>
-                    <th style={{ padding: '10px' }}>Requester</th>
-                    <th style={{ padding: '10px' }}>Type</th>
-                    <th style={{ padding: '10px' }}>Reason</th>
-                    <th style={{ padding: '10px' }}>From - To</th>
-                    <th style={{ padding: '10px' }}>Status</th>
-                    <th style={{ padding: '10px' }}>Action</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {permissions.map(p => (
-                    <tr key={p._id} style={{ borderBottom: '1px solid #e0e0e0' }}>
-                      <td style={{ padding: '10px' }}>{p.requesterName}<br/><small>{p.requesterRole}</small></td>
-                      <td style={{ padding: '10px' }}>{p.type}</td>
-                      <td style={{ padding: '10px' }}>{p.reason}</td>
-                      <td style={{ padding: '10px' }}>{new Date(p.fromDate).toLocaleDateString()} - {new Date(p.toDate).toLocaleDateString()}</td>
-                      <td style={{ padding: '10px' }}>
-                        <span style={{ 
-                          background: p.status === 'pending' ? '#fff3cd' : p.status === 'approved' ? '#d4edda' : '#f8d7da',
-                          color: p.status === 'pending' ? '#856404' : p.status === 'approved' ? '#155724' : '#721c24',
-                          padding: '4px 8px', borderRadius: '20px', fontSize: '0.7rem'
-                        }}>
-                          {p.status}
-                        </span>
-                      </td>
-                      <td style={{ padding: '10px' }}>
-                        {p.status === 'pending' && (
-                          <div style={{ display: 'flex', gap: '5px' }}>
-                            <button onClick={() => handlePermissionAction(p, 'approved')} style={{ background: '#27ae60', color: 'white', border: 'none', padding: '4px 8px', borderRadius: '4px', cursor: 'pointer' }}>
-                              Approve
-                            </button>
-                            <button onClick={() => handlePermissionAction(p, 'rejected')} style={{ background: '#e74c3c', color: 'white', border: 'none', padding: '4px 8px', borderRadius: '4px', cursor: 'pointer' }}>
-                              Reject
-                            </button>
-                          </div>
-                        )}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
             )}
           </div>
         )}
@@ -811,7 +775,6 @@ const SuperAdminDashboard = () => {
         {/* Chat Tab */}
         {activeTab === 'chat' && (
           <div style={{ background: 'white', borderRadius: '12px', overflow: 'hidden', display: 'flex', flexDirection: isMobile ? 'column' : 'row', height: isMobile ? 'auto' : '70vh' }}>
-            {/* Users List */}
             <div style={{
               width: isMobile ? '100%' : '30%',
               borderRight: isMobile ? 'none' : '1px solid #e0e0e0',
@@ -819,69 +782,36 @@ const SuperAdminDashboard = () => {
               overflowY: 'auto',
               maxHeight: isMobile ? '200px' : 'auto'
             }}>
-              <div style={{ padding: '1rem', background: '#f8f9fa', borderBottom: '1px solid #e0e0e0' }}>
-                <h3 style={{ margin: 0 }}>Chats ({unreadCount} unread)</h3>
-              </div>
+              <div style={{ padding: '1rem' }}>Users</div>
               {users.map(user => (
-                <div
-                  key={user._id}
-                  onClick={() => { setSelectedUser(user); fetchMessages(user._id); }}
-                  style={{
-                    padding: '1rem',
-                    borderBottom: '1px solid #e0e0e0',
-                    cursor: 'pointer',
-                    background: selectedUser?._id === user._id ? '#f0f4f8' : 'white'
-                  }}
-                >
-                  <div style={{ fontWeight: 'bold' }}>{user.fullName}</div>
+                <div key={user._id} onClick={() => { setSelectedUser(user); fetchMessages(user._id); }} style={{ padding: '1rem', cursor: 'pointer', background: selectedUser?._id === user._id ? '#f0f4f8' : 'white' }}>
+                  <strong>{user.fullName}</strong>
                   <div style={{ fontSize: '0.8rem', color: '#666' }}>{user.role}</div>
                 </div>
               ))}
             </div>
-
-            {/* Chat Area */}
-            <div style={{ width: isMobile ? '100%' : '70%', display: 'flex', flexDirection: 'column', height: isMobile ? '400px' : '100%' }}>
+            <div style={{ width: isMobile ? '100%' : '70%', display: 'flex', flexDirection: 'column' }}>
               {selectedUser ? (
                 <>
-                  <div style={{ padding: '1rem', background: '#1a3a5c', color: 'white' }}>
-                    <h3 style={{ margin: 0 }}>{selectedUser.fullName}</h3>
-                  </div>
-                  <div style={{ flex: 1, overflowY: 'auto', padding: '1rem' }}>
+                  <div style={{ padding: '1rem', background: '#1a3a5c', color: 'white' }}><strong>{selectedUser.fullName}</strong></div>
+                  <div style={{ flex: 1, overflowY: 'auto', padding: '1rem', height: '300px' }}>
                     {messages.map(msg => (
                       <div key={msg._id} style={{ textAlign: msg.senderId === localStorage.getItem('userId') ? 'right' : 'left', marginBottom: '1rem' }}>
-                        <div style={{
-                          display: 'inline-block',
-                          maxWidth: '70%',
-                          padding: '0.5rem 1rem',
-                          borderRadius: '12px',
-                          background: msg.senderId === localStorage.getItem('userId') ? '#1a3a5c' : '#f0f4f8',
-                          color: msg.senderId === localStorage.getItem('userId') ? 'white' : '#333'
-                        }}>
+                        <div style={{ display: 'inline-block', maxWidth: '70%', padding: '8px 12px', borderRadius: '12px', background: msg.senderId === localStorage.getItem('userId') ? '#1a3a5c' : '#f0f4f8', color: msg.senderId === localStorage.getItem('userId') ? 'white' : '#333' }}>
                           <div><strong>{msg.senderName}</strong></div>
                           <div>{msg.content}</div>
-                          <div style={{ fontSize: '0.7rem', opacity: 0.7, marginTop: '4px' }}>{new Date(msg.createdAt).toLocaleTimeString()}</div>
+                          <div style={{ fontSize: '0.7rem', opacity: 0.7 }}>{new Date(msg.createdAt).toLocaleTimeString()}</div>
                         </div>
                       </div>
                     ))}
                   </div>
                   <div style={{ padding: '1rem', borderTop: '1px solid #e0e0e0', display: 'flex', gap: '0.5rem' }}>
-                    <input
-                      type="text"
-                      value={messageText}
-                      onChange={(e) => setMessageText(e.target.value)}
-                      onKeyPress={(e) => e.key === 'Enter' && handleSendMessage()}
-                      placeholder="Type a message..."
-                      style={{ flex: 1, padding: '0.5rem', border: '1px solid #ddd', borderRadius: '8px' }}
-                    />
-                    <button onClick={handleSendMessage} style={{ background: '#1a3a5c', color: 'white', border: 'none', padding: '0.5rem 1rem', borderRadius: '8px', cursor: 'pointer' }}>
-                      Send
-                    </button>
+                    <input type="text" value={messageText} onChange={(e) => setMessageText(e.target.value)} onKeyPress={(e) => e.key === 'Enter' && handleSendMessage()} placeholder="Type a message..." style={{ flex: 1, padding: '8px', border: '1px solid #ddd', borderRadius: '8px' }} />
+                    <button onClick={handleSendMessage} style={{ background: '#1a3a5c', color: 'white', border: 'none', padding: '8px 16px', borderRadius: '8px', cursor: 'pointer' }}>Send</button>
                   </div>
                 </>
               ) : (
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', color: '#666' }}>
-                  Select a user to start chatting
-                </div>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', color: '#666' }}>Select a user to chat</div>
               )}
             </div>
           </div>
@@ -895,11 +825,11 @@ const SuperAdminDashboard = () => {
             </div>
             <h2>{userName}</h2>
             <p style={{ color: '#ffc107' }}>Super Administrator</p>
-            <hr style={{ margin: '20px 0' }} />
+            <hr />
             <div style={{ textAlign: 'left', maxWidth: '400px', margin: '0 auto' }}>
               <p><strong>Email:</strong> {localStorage.getItem('userEmail')}</p>
               <p><strong>Role:</strong> Super Admin</p>
-              <p><strong>Permissions:</strong> Full system access, create admins, manage discipline, approve permissions</p>
+              <p><strong>Permissions:</strong> Full system access</p>
             </div>
           </div>
         )}
