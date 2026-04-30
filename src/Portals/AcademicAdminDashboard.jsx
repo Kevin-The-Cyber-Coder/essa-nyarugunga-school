@@ -470,4 +470,233 @@ const AcademicAdminDashboard = () => {
                   <i className={`fas fa-${page === 'home' ? 'home' : page === 'about' ? 'info-circle' : page === 'academics' ? 'graduation-cap' : 'door-open'}`} style={{ fontSize: '2rem', color: '#1a3a5c' }}></i>
                   <h3>{page.charAt(0).toUpperCase() + page.slice(1)} Page</h3>
                   <button onClick={() => handleEditPage(page)} style={{ marginTop: '10px', background: '#3498db', color: 'white', border: 'none', padding: '8px 16px', borderRadius
-                  
+                                      <button onClick={() => handleEditPage(page)} style={{ marginTop: '10px', background: '#3498db', color: 'white', border: 'none', padding: '8px 16px', borderRadius: '6px', cursor: 'pointer' }}>
+                      Edit Content
+                    </button>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Teachers Tab */}
+          {activeTab === 'teachers' && (
+            <div style={{ background: 'white', borderRadius: '12px', padding: '1rem', overflowX: 'auto' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '1rem', flexWrap: 'wrap', gap: '10px' }}>
+                <h2 style={{ margin: 0 }}>Teachers</h2>
+                <button onClick={handleCreateTeacher} style={{ background: '#27ae60', color: 'white', border: 'none', padding: '8px 16px', borderRadius: '6px', cursor: 'pointer' }}>
+                  <i className="fas fa-plus"></i> Add Teacher
+                </button>
+              </div>
+              {teachers.length === 0 ? (
+                <p style={{ textAlign: 'center', padding: '40px', color: '#666' }}>No teachers yet. Click "Add Teacher" to create one.</p>
+              ) : (
+                <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: '600px' }}>
+                  <thead>
+                    <tr style={{ background: '#1a3a5c', color: 'white' }}>
+                      <th style={{ padding: '10px' }}>Name</th>
+                      <th style={{ padding: '10px' }}>Email</th>
+                      <th style={{ padding: '10px' }}>Subject</th>
+                      <th style={{ padding: '10px' }}>Phone</th>
+                      <th style={{ padding: '10px' }}>Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {teachers.map(t => (
+                      <tr key={t._id} style={{ borderBottom: '1px solid #e0e0e0' }}>
+                        <td style={{ padding: '10px' }}>{t.fullName}</td>
+                        <td style={{ padding: '10px' }}>{t.email}</td>
+                        <td style={{ padding: '10px' }}>{t.subject || '-'}</td>
+                        <td style={{ padding: '10px' }}>{t.phone || '-'}</td>
+                        <td style={{ padding: '10px' }}>
+                          <button onClick={() => handleDeleteTeacher(t)} style={{ background: '#e74c3c', color: 'white', border: 'none', padding: '4px 10px', borderRadius: '4px', cursor: 'pointer' }}>
+                            Delete
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              )}
+            </div>
+          )}
+
+          {/* Performance Tab */}
+          {activeTab === 'performance' && (
+            <div>
+              <div style={{ background: 'white', borderRadius: '12px', padding: '1rem', marginBottom: '20px' }}>
+                <h2>Class Performance</h2>
+                {classPerformance.length === 0 ? (
+                  <p style={{ textAlign: 'center', padding: '40px', color: '#666' }}>No class performance data available.</p>
+                ) : (
+                  <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                    <thead>
+                      <tr style={{ background: '#1a3a5c', color: 'white' }}>
+                        <th style={{ padding: '10px' }}>Class</th>
+                        <th style={{ padding: '10px' }}>Teacher</th>
+                        <th style={{ padding: '10px' }}>Students</th>
+                        <th style={{ padding: '10px' }}>Average Score</th>
+                      <tr>
+                    </thead>
+                    <tbody>
+                      {classPerformance.map((c, idx) => (
+                        <tr key={idx} style={{ borderBottom: '1px solid #e0e0e0' }}>
+                          <td style={{ padding: '10px' }}>{c.className}</td>
+                          <td style={{ padding: '10px' }}>{c.teacher}</td>
+                          <td style={{ padding: '10px' }}>{c.studentCount}</td>
+                          <td style={{ padding: '10px' }}>{c.averageScore}%</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                )}
+              </div>
+
+              <div style={{ background: 'white', borderRadius: '12px', padding: '1rem' }}>
+                <h2>Student Performance</h2>
+                {studentPerformance.length === 0 ? (
+                  <p style={{ textAlign: 'center', padding: '40px', color: '#666' }}>No student performance data available.</p>
+                ) : (
+                  <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                    <thead>
+                      <tr style={{ background: '#1a3a5c', color: 'white' }}>
+                        <th style={{ padding: '10px' }}>Student ID</th>
+                        <th style={{ padding: '10px' }}>Name</th>
+                        <th style={{ padding: '10px' }}>Class</th>
+                        <th style={{ padding: '10px' }}>Average Score</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {studentPerformance.slice(0, 10).map((s, idx) => (
+                        <tr key={idx} style={{ borderBottom: '1px solid #e0e0e0' }}>
+                          <td style={{ padding: '10px' }}>{s.studentId}</td>
+                          <td style={{ padding: '10px' }}>{s.name}</td>
+                          <td style={{ padding: '10px' }}>{s.class}</td>
+                          <td style={{ padding: '10px' }}>{s.averageScore}%</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* Announcements Tab */}
+          {activeTab === 'announcements' && (
+            <div style={{ background: 'white', borderRadius: '12px', padding: '1rem' }}>
+              <h2>School Announcements</h2>
+              {announcements.length === 0 ? (
+                <p style={{ textAlign: 'center', padding: '40px', color: '#666' }}>No announcements yet.</p>
+              ) : (
+                announcements.map(ann => (
+                  <div key={ann._id} style={{ padding: '1rem', borderBottom: '1px solid #e0e0e0', marginBottom: '0.5rem' }}>
+                    <h3 style={{ margin: '0 0 5px 0', color: '#1a3a5c' }}>{ann.title}</h3>
+                    <p style={{ margin: '0', color: '#666' }}>{ann.content}</p>
+                    <small style={{ color: '#999' }}>{new Date(ann.createdAt).toLocaleDateString()}</small>
+                  </div>
+                ))
+              )}
+            </div>
+          )}
+
+          {/* Chat Tab */}
+          {activeTab === 'chat' && (
+            <div style={{ background: 'white', borderRadius: '12px', overflow: 'hidden', display: 'flex', flexDirection: isMobile ? 'column' : 'row', height: isMobile ? 'auto' : '70vh' }}>
+              <div style={{
+                width: isMobile ? '100%' : '30%',
+                borderRight: isMobile ? 'none' : '1px solid #e0e0e0',
+                borderBottom: isMobile ? '1px solid #e0e0e0' : 'none',
+                overflowY: 'auto',
+                maxHeight: isMobile ? '200px' : 'auto'
+              }}>
+                <div style={{ padding: '1rem', background: '#f8f9fa', borderBottom: '1px solid #e0e0e0' }}>
+                  <h3 style={{ margin: 0 }}>Chats ({unreadCount} unread)</h3>
+                </div>
+                {users.map(user => (
+                  <div
+                    key={user._id}
+                    onClick={() => { setSelectedUser(user); fetchMessages(user._id); }}
+                    style={{
+                      padding: '1rem',
+                      borderBottom: '1px solid #e0e0e0',
+                      cursor: 'pointer',
+                      background: selectedUser?._id === user._id ? '#f0f4f8' : 'white'
+                    }}
+                  >
+                    <strong>{user.fullName}</strong>
+                    <div style={{ fontSize: '0.8rem', color: '#666' }}>{user.role}</div>
+                  </div>
+                ))}
+                {users.length === 0 && (
+                  <div style={{ padding: '1rem', textAlign: 'center', color: '#666' }}>No users available</div>
+                )}
+              </div>
+
+              <div style={{ width: isMobile ? '100%' : '70%', display: 'flex', flexDirection: 'column', height: isMobile ? '400px' : '100%' }}>
+                {selectedUser ? (
+                  <>
+                    <div style={{ padding: '1rem', background: '#1a3a5c', color: 'white' }}>
+                      <h3 style={{ margin: 0 }}>{selectedUser.fullName}</h3>
+                    </div>
+                    <div style={{ flex: 1, overflowY: 'auto', padding: '1rem' }}>
+                      {messages.map(msg => (
+                        <div key={msg._id} style={{ textAlign: msg.senderId === localStorage.getItem('userId') ? 'right' : 'left', marginBottom: '1rem' }}>
+                          <div style={{
+                            display: 'inline-block',
+                            maxWidth: '70%',
+                            padding: '0.5rem 1rem',
+                            borderRadius: '12px',
+                            background: msg.senderId === localStorage.getItem('userId') ? '#1a3a5c' : '#f0f4f8',
+                            color: msg.senderId === localStorage.getItem('userId') ? 'white' : '#333'
+                          }}>
+                            <div><strong>{msg.senderName}</strong></div>
+                            <div>{msg.content}</div>
+                            <div style={{ fontSize: '0.7rem', opacity: 0.7, marginTop: '4px' }}>{new Date(msg.createdAt).toLocaleTimeString()}</div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                    <div style={{ padding: '1rem', borderTop: '1px solid #e0e0e0', display: 'flex', gap: '0.5rem' }}>
+                      <input
+                        type="text"
+                        value={messageText}
+                        onChange={(e) => setMessageText(e.target.value)}
+                        onKeyPress={(e) => e.key === 'Enter' && handleSendMessage()}
+                        placeholder="Type a message..."
+                        style={{ flex: 1, padding: '0.5rem', border: '1px solid #ddd', borderRadius: '8px' }}
+                      />
+                      <button onClick={handleSendMessage} style={{ background: '#1a3a5c', color: 'white', border: 'none', padding: '0.5rem 1rem', borderRadius: '8px', cursor: 'pointer' }}>
+                        Send
+                      </button>
+                    </div>
+                  </>
+                ) : (
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', color: '#666' }}>
+                    Select a user to start chatting
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* Profile Tab */}
+          {activeTab === 'profile' && (
+            <div style={{ background: 'white', borderRadius: '12px', padding: '1.5rem', textAlign: 'center' }}>
+              <div style={{ width: '80px', height: '80px', background: '#ffc107', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto' }}>
+                <i className="fas fa-user-graduate" style={{ fontSize: '2.5rem', color: '#1a3a5c' }}></i>
+              </div>
+              <h2>{userName}</h2>
+              <p style={{ color: '#ffc107' }}>Academic Administrator</p>
+              <hr style={{ margin: '20px 0' }} />
+              <div style={{ textAlign: 'left', maxWidth: '400px', margin: '0 auto' }}>
+                <p><strong>Email:</strong> {localStorage.getItem('userEmail')}</p>
+              </div>
+            </div>
+          )}
+        </main>
+      </div>
+    );
+  };
+
+export default AcademicAdminDashboard;
