@@ -1,8 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import Swal from 'sweetalert2';
-import Navbar from '../components/Navbar';
-import Footer from '../components/Footer';
 
 const PortalLogin = () => {
   const [selectedRole, setSelectedRole] = useState('super_admin');
@@ -39,7 +37,6 @@ const PortalLogin = () => {
       const data = await response.json();
       
       if (response.ok) {
-        // Store user data
         localStorage.setItem('portalToken', data.token);
         localStorage.setItem('userRole', data.role);
         localStorage.setItem('userName', data.fullName);
@@ -54,169 +51,129 @@ const PortalLogin = () => {
           localStorage.removeItem('rememberedRole');
         }
         
-        Swal.fire({
-          title: 'Login Successful!',
-          text: `Welcome back, ${data.fullName}!`,
-          icon: 'success',
-          timer: 1500,
-          showConfirmButton: false
-        });
+        Swal.fire({ title: 'Login Successful!', text: `Welcome ${data.fullName}!`, icon: 'success', timer: 1500, showConfirmButton: false });
         
-        // Navigate based on role
         setTimeout(() => {
-          switch(data.role) {
-            case 'super_admin':
-              navigate('/portal/super-admin');
-              break;
-            case 'academic_admin':
-              navigate('/portal/academic-admin');
-              break;
-            case 'teacher':
-              navigate('/portal/teacher');
-              break;
-            case 'student':
-              navigate('/portal/student');
-              break;
-            case 'parent':
-              navigate('/portal/parent');
-              break;
-            default:
-              navigate('/portal/login');
-          }
+          const dashboards = {
+            super_admin: '/portal/super-admin',
+            academic_admin: '/portal/academic-admin',
+            teacher: '/portal/teacher',
+            student: '/portal/student',
+            parent: '/portal/parent'
+          };
+          navigate(dashboards[data.role] || '/portal/login');
         }, 1500);
       } else {
-        Swal.fire({
-          title: 'Login Failed',
-          text: data.message || 'Invalid email or password',
-          icon: 'error',
-          confirmButtonColor: '#1e3c72'
-        });
+        Swal.fire({ title: 'Login Failed', text: data.message, icon: 'error', confirmButtonColor: '#1e3c72' });
       }
     } catch (error) {
-      Swal.fire({
-        title: 'Login Failed',
-        text: 'Network error. Please try again.',
-        icon: 'error',
-        confirmButtonColor: '#1e3c72'
-      });
+      Swal.fire({ title: 'Login Failed', text: 'Network error', icon: 'error', confirmButtonColor: '#1e3c72' });
     } finally {
       setIsLoading(false);
     }
   };
 
+  const roles = [
+    { id: 'super_admin', label: 'Super Admin', icon: 'fas fa-crown' },
+    { id: 'academic_admin', label: 'Academic Admin', icon: 'fas fa-chalkboard-user' },
+    { id: 'teacher', label: 'Teacher', icon: 'fas fa-chalkboard-user' },
+    { id: 'student', label: 'Student', icon: 'fas fa-user-graduate' },
+    { id: 'parent', label: 'Parent', icon: 'fas fa-users' }
+  ];
+
   return (
-    <>
-      <Navbar />
-      <div className="portal-login-page">
-        <div className="container">
-          <div className="login-container">
-            <div className="login-header">
-              <div className="login-logo">
-                <i className="fas fa-graduation-cap"></i>
-              </div>
-              <h1>Portal Login</h1>
-              <p>Access your personalized dashboard</p>
-            </div>
-            
-            <div className="role-selector">
-              <button 
-                className={`role-btn ${selectedRole === 'super_admin' ? 'active' : ''}`}
-                onClick={() => setSelectedRole('super_admin')}
-              >
-                <i className="fas fa-crown"></i>
-                <span>Super Admin</span>
-              </button>
-              <button 
-                className={`role-btn ${selectedRole === 'academic_admin' ? 'active' : ''}`}
-                onClick={() => setSelectedRole('academic_admin')}
-              >
-                <i className="fas fa-chalkboard-user"></i>
-                <span>Academic Admin</span>
-              </button>
-              <button 
-                className={`role-btn ${selectedRole === 'teacher' ? 'active' : ''}`}
-                onClick={() => setSelectedRole('teacher')}
-              >
-                <i className="fas fa-chalkboard-user"></i>
-                <span>Teacher</span>
-              </button>
-            </div>
+    <div className="login-page">
+      <div className="login-container">
+        <div className="login-header">
+          <i className="fas fa-graduation-cap"></i>
+          <h1>ESSA Nyarugunga</h1>
+          <p>Portal Login</p>
+        </div>
+        
+        <div className="role-selector">
+          {roles.map(role => (
+            <button key={role.id} className={`role-btn ${selectedRole === role.id ? 'active' : ''}`} onClick={() => setSelectedRole(role.id)}>
+              <i className={role.icon}></i>
+              <span>{role.label}</span>
+            </button>
+          ))}
+        </div>
 
-            <form onSubmit={handleLogin} className="login-form">
-              <div className="form-group">
-                <i className="fas fa-envelope"></i>
-                <input 
-                  type="email" 
-                  placeholder="Email Address" 
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  required
-                />
-              </div>
-              <div className="form-group">
-                <i className="fas fa-lock"></i>
-                <input 
-                  type={showPassword ? "text" : "password"}
-                  placeholder="Password" 
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  required
-                />
-                <button 
-                  type="button" 
-                  className="password-toggle"
-                  onClick={() => setShowPassword(!showPassword)}
-                >
-                  <i className={`fas ${showPassword ? 'fa-eye-slash' : 'fa-eye'}`}></i>
-                </button>
-              </div>
-              
-              <div className="form-options">
-                <label className="checkbox-label">
-                  <input 
-                    type="checkbox" 
-                    checked={rememberMe}
-                    onChange={(e) => setRememberMe(e.target.checked)}
-                  />
-                  <span>Remember me</span>
-                </label>
-              </div>
-
-              <button type="submit" className="login-btn" disabled={isLoading}>
-                {isLoading ? (
-                  <>
-                    <i className="fas fa-spinner fa-spin"></i> Logging in...
-                  </>
-                ) : (
-                  <>
-                    <i className="fas fa-sign-in-alt"></i> Login
-                  </>
-                )}
-              </button>
-            </form>
-
-            <div className="demo-info">
-              <p><i className="fas fa-info-circle"></i> Login Credentials:</p>
-              <div className="demo-creds">
-                <div className="demo-cred">
-                  <span className="role-badge super-admin">Super Admin</span>
-                  <code>admin@essa.rw / admin123</code>
-                </div>
-                <div className="demo-cred">
-                  <span className="role-badge academic">Academic Admin</span>
-                  <code>academic@essa.rw / academic123</code>
-                </div>
-                <div className="demo-cred">
-                  <span className="role-badge teacher">Teacher</span>
-                  <code>teacher@essa.rw / teacher123</code>
-                </div>
-              </div>
-            </div>
+        <form onSubmit={handleLogin}>
+          <div className="input-group">
+            <i className="fas fa-envelope"></i>
+            <input type="email" placeholder="Email" value={email} onChange={(e) => setEmail(e.target.value)} required />
           </div>
+          <div className="input-group">
+            <i className="fas fa-lock"></i>
+            <input type={showPassword ? "text" : "password"} placeholder="Password" value={password} onChange={(e) => setPassword(e.target.value)} required />
+            <button type="button" className="toggle-password" onClick={() => setShowPassword(!showPassword)}>
+              <i className={`fas ${showPassword ? 'fa-eye-slash' : 'fa-eye'}`}></i>
+            </button>
+          </div>
+          
+          <label className="remember-me">
+            <input type="checkbox" checked={rememberMe} onChange={(e) => setRememberMe(e.target.checked)} />
+            <span>Remember me</span>
+          </label>
+
+          <button type="submit" className="login-btn" disabled={isLoading}>
+            {isLoading ? <i className="fas fa-spinner fa-spin"></i> : <><i className="fas fa-sign-in-alt"></i> Login</>}
+          </button>
+        </form>
+
+        <div className="demo-info">
+          <p><i className="fas fa-info-circle"></i> Default Credentials:</p>
+          <code>admin@essa.rw / admin123</code>
+          <small>(Super Admin)</small>
         </div>
       </div>
-      <Footer />
-    </>
+
+      <style>{`
+        .login-page {
+          min-height: 100vh;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+          padding: 20px;
+        }
+        .login-container {
+          max-width: 500px;
+          width: 100%;
+          background: white;
+          border-radius: 20px;
+          padding: 40px;
+          box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+        }
+        .login-header {
+          text-align: center;
+          margin-bottom: 30px;
+        }
+        .login-header i {
+          font-size: 3rem;
+          color: #1a3a5c;
+          margin-bottom: 10px;
+        }
+        .login-header h1 { color: #1a3a5c; margin-bottom: 5px; }
+        .login-header p { color: #666; }
+        .role-selector { display: grid; grid-template-columns: repeat(5, 1fr); gap: 10px; margin-bottom: 30px; }
+        .role-btn { padding: 10px; background: #f0f4f8; border: 2px solid #e0e0e0; border-radius: 10px; cursor: pointer; transition: all 0.3s; display: flex; flex-direction: column; align-items: center; gap: 5px; }
+        .role-btn.active { background: #1a3a5c; border-color: #1a3a5c; color: white; }
+        .role-btn i { font-size: 1.2rem; }
+        .role-btn span { font-size: 0.7rem; }
+        .input-group { position: relative; margin-bottom: 20px; }
+        .input-group i { position: absolute; left: 15px; top: 50%; transform: translateY(-50%); color: #999; }
+        .input-group input { width: 100%; padding: 12px 15px 12px 45px; border: 1px solid #ddd; border-radius: 10px; font-size: 1rem; }
+        .toggle-password { position: absolute; right: 15px; top: 50%; transform: translateY(-50%); background: none; border: none; cursor: pointer; color: #999; }
+        .remember-me { display: flex; align-items: center; gap: 8px; margin-bottom: 20px; cursor: pointer; }
+        .login-btn { width: 100%; padding: 12px; background: #1a3a5c; color: white; border: none; border-radius: 10px; font-size: 1rem; cursor: pointer; transition: all 0.3s; }
+        .login-btn:hover { background: #2c5f8a; }
+        .demo-info { margin-top: 20px; padding: 15px; background: #f8f9fa; border-radius: 10px; text-align: center; font-size: 0.85rem; }
+        .demo-info code { background: white; padding: 2px 8px; border-radius: 4px; display: inline-block; margin: 5px 0; }
+        @media (max-width: 600px) { .role-selector { grid-template-columns: repeat(3, 1fr); } .login-container { padding: 25px; } }
+      `}</style>
+    </div>
   );
 };
 

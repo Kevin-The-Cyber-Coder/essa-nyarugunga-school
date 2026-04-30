@@ -6,15 +6,14 @@ const assignmentSchema = new mongoose.Schema({
   subject: { type: String, required: true },
   classId: { type: mongoose.Schema.Types.ObjectId, ref: 'Class', required: true },
   teacherId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
-  dueDate: { type: Date, required: true },
+  dueDate: Date,
   totalPoints: { type: Number, default: 100 },
   submissions: [{
     studentId: { type: mongoose.Schema.Types.ObjectId, ref: 'Student' },
     submittedAt: Date,
     content: String,
     score: Number,
-    feedback: String,
-    status: { type: String, enum: ['pending', 'submitted', 'graded'], default: 'pending' }
+    status: { type: String, default: 'pending' }
   }],
   createdAt: { type: Date, default: Date.now }
 });
