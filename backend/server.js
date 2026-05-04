@@ -56,7 +56,6 @@ const studentSchema = new mongoose.Schema({
   enrollmentDate: { type: Date, default: Date.now }
 });
 
-// Class Schema
 const classSchema = new mongoose.Schema({
   className: String,
   grade: { type: String, enum: ['S1', 'S2', 'S3', 'S4', 'S5', 'S6'] },
@@ -65,7 +64,6 @@ const classSchema = new mongoose.Schema({
   students: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Student' }],
   createdAt: { type: Date, default: Date.now }
 });
-
 // Assignment Schema
 const assignmentSchema = new mongoose.Schema({
   title: String,
@@ -343,34 +341,34 @@ app.get('/api/academic-admin/classes', authMiddleware, async (req, res) => {
 });
 
 app.post('/api/academic-admin/classes', authMiddleware, async (req, res) => {
-  const { className, grade, academicYear, teacherId } = req.body;
-  const newClass = new Class({ className, grade, academicYear, teacherId: teacherId || null });
-  await newClass.save();
-  res.json({ success: true, class: newClass });
+  try {
+    const { className, grade, academicYear, teacherId } = req.body;
+    const newClass = new Class({ className, grade, academicYear, teacherId: teacherId || null });
+    await newClass.save();
+    const populatedClass = await Class.findById(newClass._id).populate('teacherId', 'fullName');
+    res.json({ success: true, class: populatedClass });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
 });
-// Assign teacher to class - FIXED to return populated teacher data
+
+// Assign teacher to class
 app.put('/api/academic-admin/classes/:classId/assign-teacher', authMiddleware, async (req, res) => {
   try {
     const { teacherId } = req.body;
     const classId = req.params.classId;
     
-    console.log('Assigning teacher:', { classId, teacherId });
-    
-    // Update the class
     const updatedClass = await Class.findByIdAndUpdate(
       classId,
       { teacherId: teacherId || null },
-      { new: true }  // This returns the updated document
+      { new: true }
     );
     
     if (!updatedClass) {
       return res.status(404).json({ message: 'Class not found' });
     }
     
-    // Populate the teacher data
     const populatedClass = await Class.findById(updatedClass._id).populate('teacherId', 'fullName');
-    
-    console.log('Class updated with teacher:', populatedClass);
     
     res.json({ 
       success: true, 
@@ -378,10 +376,16 @@ app.put('/api/academic-admin/classes/:classId/assign-teacher', authMiddleware, a
       class: populatedClass
     });
   } catch (error) {
-    console.error('Assign teacher error:', error);
     res.status(500).json({ message: error.message });
   }
 });
+
+// Delete class
+app.delete('/api/academic-admin/classes/:id', authMiddleware, async (req, res) => {
+  await Class.findByIdAndDelete(req.params.id);
+  res.json({ success: true });
+});
+
 // News
 app.get('/api/academic-admin/news', authMiddleware, async (req, res) => {
   const news = await News.find().sort({ createdAt: -1 });
@@ -452,84 +456,216 @@ app.get('/api/academic-admin/class-performance', authMiddleware, async (req, res
 });
 
 // ==================== TEACHER ROUTES ====================
-app.get('/api/teacher/students', authMiddleware, async (req, res) => {
-  const students = await Student.find({ teacherId: req.userId }).populate('userId', 'fullName email');
-  res.json(students);
-});
 
+// Get teacher's assigned classes - FIXED
 app.get('/api/teacher/classes', authMiddleware, async (req, res) => {
-  const classes = await Class.find({ teacherId: req.userId });
-  res.json(classes);
+  try {
+    // Find classes where teacherId matches the logged-in teacher
+    const classes = await Class.find({ teacherId: req.userId }).populate('teacherId', 'fullName');
+    console.log(`Teacher ${req.userId} has ${classes.length} classes assigned`);
+    res.json(classes);
+  } catch (error) {
+    console.error('Error fetching teacher classes:', error);
+    res.status(500).json({ message: error.message });
+  }
 });
 
+// Get teacher's students (from their assigned classes)
+app.get('/api/teacher/students', authMiddleware, async (req, res) => {
+  try {
+    // First get all classes assigned to this teacher
+    const teacherClasses = await Class.find({ teacherId: req.userId });
+    const classIds = teacherClasses.map(c => c._id);
+    
+    // Then get all students in those classes
+    const students = await Student.find({ classId: { $in: classIds } })
+      .populate('userId', 'fullName email')
+      .populate('classId', 'grade className');
+    
+    console.log(`Teacher ${req.userId} has ${students.length} students`);
+    res.json(students);
+  } catch (error) {
+    console.error('Error fetching teacher students:', error);
+    res.status(500).json({ message: error.message });
+  }
+});
+
+// Get teacher's assignments
+app.get('/api/teacher/assignments', authMiddleware, async (req, res) => {
+  try {
+    const assignments = await Assignment.find({ teacherId: req.userId })
+      .populate('classId', 'grade className');
+    res.json(assignments);
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+});
+
+// Create assignment for a class
+app.post('/api/teacher/assignments', authMiddleware, async (req, res) => {
+  try {
+    const { title, description, subject, classId, dueDate, totalPoints } = req.body;
+    
+    // Verify the class belongs to this teacher
+    const classItem = await Class.findOne({ _id: classId, teacherId: req.userId });
+    if (!classItem) {
+      return res.status(403).json({ message: 'You are not assigned to this class' });
+    }
+    
+    const assignment = new Assignment({
+      title,
+      description,
+      subject,
+      classId,
+      teacherId: req.userId,
+      dueDate,
+      totalPoints: totalPoints || 100
+    });
+    await assignment.save();
+    
+    res.json({ success: true, assignment });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+});
+
+// Create student (teacher creates student in their class)
 app.post('/api/teacher/create-student', authMiddleware, async (req, res) => {
-  const { fullName, email, password, studentId, classId, parentName, parentPhone } = req.body;
-  const existing = await User.findOne({ email });
-  if (existing) return res.status(400).json({ message: 'Email exists' });
-  
-  const hashedPassword = await bcrypt.hash(password, 10);
-  const user = new User({ fullName, email, password: hashedPassword, role: 'student', createdBy: req.userId });
-  await user.save();
-  
-  const student = new Student({
-    userId: user._id, studentId: studentId || `STU${Date.now()}`, fullName, email,
-    classId, teacherId: req.userId, parentName, parentPhone, enrollmentDate: new Date()
-  });
-  await student.save();
-  
-  await Class.findByIdAndUpdate(classId, { $push: { students: student._id } });
-  res.json({ success: true, student: { _id: student._id, fullName, email, password } });
+  try {
+    const { fullName, email, password, studentId, classId, parentName, parentPhone } = req.body;
+    
+    // Verify the class belongs to this teacher
+    const classItem = await Class.findOne({ _id: classId, teacherId: req.userId });
+    if (!classItem) {
+      return res.status(403).json({ message: 'You are not assigned to this class' });
+    }
+    
+    const existing = await User.findOne({ email });
+    if (existing) return res.status(400).json({ message: 'Email exists' });
+    
+    const hashedPassword = await bcrypt.hash(password || 'student123', 10);
+    const user = new User({
+      fullName,
+      email,
+      password: hashedPassword,
+      role: 'student',
+      createdBy: req.userId,
+      isActive: true
+    });
+    await user.save();
+    
+    const student = new Student({
+      userId: user._id,
+      studentId: studentId || `STU${Date.now()}`,
+      fullName,
+      email,
+      classId,
+      teacherId: req.userId,
+      parentName: parentName || '',
+      parentPhone: parentPhone || '',
+      enrollmentDate: new Date()
+    });
+    await student.save();
+    
+    // Add student to class
+    await Class.findByIdAndUpdate(classId, { $push: { students: student._id } });
+    
+    res.json({ 
+      success: true, 
+      student: { 
+        _id: student._id, 
+        fullName, 
+        email, 
+        password: password || 'student123',
+        studentId: student.studentId
+      } 
+    });
+  } catch (error) {
+    console.error('Create student error:', error);
+    res.status(500).json({ message: error.message });
+  }
 });
 
+// Delete student
 app.delete('/api/teacher/students/:id', authMiddleware, async (req, res) => {
-  const student = await Student.findById(req.params.id);
-  if (student) {
+  try {
+    const student = await Student.findById(req.params.id);
+    if (!student) {
+      return res.status(404).json({ message: 'Student not found' });
+    }
+    
+    // Verify teacher owns this student
+    if (student.teacherId.toString() !== req.userId) {
+      return res.status(403).json({ message: 'Access denied' });
+    }
+    
     await Class.findByIdAndUpdate(student.classId, { $pull: { students: student._id } });
     await User.findByIdAndDelete(student.userId);
     await Student.findByIdAndDelete(req.params.id);
+    
+    res.json({ success: true });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
   }
-  res.json({ success: true });
 });
 
+// Reset student password
 app.post('/api/teacher/students/:id/reset-password', authMiddleware, async (req, res) => {
-  const { newPassword } = req.body;
-  const student = await Student.findById(req.params.id);
-  if (student) {
-    const hashedPassword = await bcrypt.hash(newPassword, 10);
+  try {
+    const { newPassword } = req.body;
+    const student = await Student.findById(req.params.id);
+    if (!student) {
+      return res.status(404).json({ message: 'Student not found' });
+    }
+    
+    // Verify teacher owns this student
+    if (student.teacherId.toString() !== req.userId) {
+      return res.status(403).json({ message: 'Access denied' });
+    }
+    
+    const hashedPassword = await bcrypt.hash(newPassword || 'student123', 10);
     await User.findByIdAndUpdate(student.userId, { password: hashedPassword });
+    
+    res.json({ success: true, newPassword: newPassword || 'student123' });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
   }
-  res.json({ success: true, newPassword });
 });
 
-app.get('/api/teacher/assignments', authMiddleware, async (req, res) => {
-  const assignments = await Assignment.find({ teacherId: req.userId });
-  res.json(assignments);
-});
-
-app.post('/api/teacher/assignments', authMiddleware, async (req, res) => {
-  const { title, description, subject, classId, dueDate, totalPoints } = req.body;
-  const assignment = new Assignment({ title, description, subject, classId, teacherId: req.userId, dueDate, totalPoints: totalPoints || 100 });
-  await assignment.save();
-  res.json({ success: true, assignment });
-});
-
+// Get attendance for teacher's classes
 app.get('/api/teacher/attendance', authMiddleware, async (req, res) => {
-  const attendance = await Attendance.find({ teacherId: req.userId });
-  res.json(attendance);
-});
-
-app.post('/api/teacher/attendance', authMiddleware, async (req, res) => {
-  const { classId, date, records } = req.body;
-  for (const record of records) {
-    await Attendance.findOneAndUpdate(
-      { studentId: record.studentId, date: new Date(date) },
-      { classId, status: record.status, teacherId: req.userId },
-      { upsert: true }
-    );
+  try {
+    const attendance = await Attendance.find({ teacherId: req.userId })
+      .populate('studentId', 'fullName studentId');
+    res.json(attendance);
+  } catch (error) {
+    res.status(500).json({ message: error.message });
   }
-  res.json({ success: true });
 });
 
+// Mark attendance
+app.post('/api/teacher/attendance', authMiddleware, async (req, res) => {
+  try {
+    const { classId, date, records } = req.body;
+    
+    // Verify class belongs to teacher
+    const classItem = await Class.findOne({ _id: classId, teacherId: req.userId });
+    if (!classItem) {
+      return res.status(403).json({ message: 'You are not assigned to this class' });
+    }
+    
+    for (const record of records) {
+      await Attendance.findOneAndUpdate(
+        { studentId: record.studentId, date: new Date(date) },
+        { classId, status: record.status, teacherId: req.userId },
+        { upsert: true }
+      );
+    }
+    res.json({ success: true });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+});
 // ==================== MESSAGE ROUTES ====================
 app.get('/api/messages/users', authMiddleware, async (req, res) => {
   const users = await User.find({ _id: { $ne: req.userId }, isActive: true }).select('fullName email role');
