@@ -257,53 +257,68 @@ const AcademicAdminDashboard = () => {
   };
 
   // Class Management
-  const handleCreateClass = async () => {
-    const { value: formValues } = await Swal.fire({
-      title: 'Create Class',
-      html: `
-        <div style="text-align: left;">
-          <input type="text" id="className" class="swal2-input" placeholder="Class Name (e.g., A, B, C)" required>
-          <select id="grade" class="swal2-select" style="width: 100%; padding: 8px; margin: 5px 0;">
-            <option value="S1">S1</option><option value="S2">S2</option><option value="S3">S3</option>
-            <option value="S4">S4</option><option value="S5">S5</option><option value="S6">S6</option>
-          </select>
-          <input type="text" id="academicYear" class="swal2-input" placeholder="Academic Year (e.g., 2026)" required>
-        </div>
-      `,
-      confirmButtonText: 'Create Class',
-      confirmButtonColor: '#3498db',
-      showCancelButton: true,
-      width: '500px',
-      preConfirm: () => {
-        const className = document.getElementById('className').value;
-        const grade = document.getElementById('grade').value;
-        const academicYear = document.getElementById('academicYear').value;
-        if (!className || !grade || !academicYear) {
-          Swal.showValidationMessage('Please fill all required fields');
-          return false;
-        }
-        return { className, grade, academicYear, teacherId: null };
-      }
-    });
-
-    if (formValues) {
-      const token = getToken();
-      const response = await fetch(`${API_URL}/academic-admin/classes`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-        body: JSON.stringify(formValues)
-      });
+ const handleCreateClass = async () => {
+  if (teachers.length === 0) {
+    Swal.fire('No Teachers', 'Please create teachers first.', 'warning');
+    return;
+  }
+  
+  // Build teacher options
+  const teacherOptions = { '': '-- Select Teacher (Optional) --' };
+  teachers.forEach(teacher => {
+    teacherOptions[teacher._id] = `${teacher.fullName} (${teacher.subject || 'General'})`;
+  });
+  
+  const { value: formValues } = await Swal.fire({
+    title: 'Create Class',
+    html: `
+      <div style="text-align: left;">
+        <input type="text" id="className" class="swal2-input" placeholder="Class Name (e.g., A, B, C)" required>
+        <select id="grade" class="swal2-select" style="width: 100%; padding: 8px; margin: 5px 0;">
+          <option value="S1">S1</option><option value="S2">S2</option><option value="S3">S3</option>
+          <option value="S4">S4</option><option value="S5">S5</option><option value="S6">S6</option>
+        </select>
+        <input type="text" id="academicYear" class="swal2-input" placeholder="Academic Year (e.g., 2026)" required>
+        <select id="teacherId" class="swal2-select" style="width: 100%; padding: 8px; margin: 5px 0;">
+          ${Object.entries(teacherOptions).map(([value, label]) => `<option value="${value}">${label}</option>`).join('')}
+        </select>
+      </div>
+    `,
+    confirmButtonText: 'Create Class',
+    confirmButtonColor: '#3498db',
+    showCancelButton: true,
+    width: '500px',
+    preConfirm: () => {
+      const className = document.getElementById('className').value;
+      const grade = document.getElementById('grade').value;
+      const academicYear = document.getElementById('academicYear').value;
+      const teacherId = document.getElementById('teacherId').value;
       
-      if (response.ok) {
-        Swal.fire('Success!', 'Class created successfully', 'success');
-        fetchAllData();
-      } else {
-        const error = await response.json();
-        Swal.fire('Error', error.message || 'Failed to create class', 'error');
+      if (!className || !grade || !academicYear) {
+        Swal.showValidationMessage('Please fill all required fields');
+        return false;
       }
+      return { className, grade, academicYear, teacherId: teacherId || null };
     }
-  };
+  });
 
+  if (formValues) {
+    const token = getToken();
+    const response = await fetch(`${API_URL}/academic-admin/classes`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+      body: JSON.stringify(formValues)
+    });
+    
+    if (response.ok) {
+      Swal.fire('Success!', 'Class created successfully', 'success');
+      fetchAllData();
+    } else {
+      const error = await response.json();
+      Swal.fire('Error', error.message || 'Failed to create class', 'error');
+    }
+  }
+};
   const handleDeleteClass = async (classItem) => {
     const result = await Swal.fire({
       title: 'Delete Class?',
@@ -720,67 +735,89 @@ const AcademicAdminDashboard = () => {
           </div>
         )}
 
-        {/* Classes Tab */}
-        {activeTab === 'classes' && (
-          <div style={{ background: 'white', borderRadius: '12px', padding: '1rem', overflowX: 'auto' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '1rem', flexWrap: 'wrap', gap: '10px' }}>
-              <h2 style={{ margin: 0 }}>Classes</h2>
-              <div style={{ display: 'flex', gap: '10px' }}>
-                <button onClick={handleRefreshClasses} style={{ background: '#3498db', color: 'white', border: 'none', padding: '8px 16px', borderRadius: '6px', cursor: 'pointer' }}>
-                  <i className="fas fa-sync-alt"></i> Refresh
-                </button>
-                <button onClick={handleCreateClass} style={{ background: '#27ae60', color: 'white', border: 'none', padding: '8px 16px', borderRadius: '6px', cursor: 'pointer' }}>
-                  <i className="fas fa-plus"></i> Create Class
-                </button>
-              </div>
-            </div>
+        {/* Classes Tab - FULLY WORKING */}
+{activeTab === 'classes' && (
+  <div style={{ background: 'white', borderRadius: '12px', padding: '1rem', overflowX: 'auto' }}>
+    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '1rem', flexWrap: 'wrap', gap: '10px' }}>
+      <h2 style={{ margin: 0 }}>Classes</h2>
+      <div style={{ display: 'flex', gap: '10px' }}>
+        <button onClick={handleRefreshClasses} style={{ background: '#3498db', color: 'white', border: 'none', padding: '8px 16px', borderRadius: '6px', cursor: 'pointer' }}>
+          <i className="fas fa-sync-alt"></i> Refresh
+        </button>
+        <button onClick={handleCreateClass} style={{ background: '#27ae60', color: 'white', border: 'none', padding: '8px 16px', borderRadius: '6px', cursor: 'pointer' }}>
+          <i className="fas fa-plus"></i> Create Class
+        </button>
+      </div>
+    </div>
 
-            {classes.length === 0 ? (
-              <p style={{ textAlign: 'center', padding: '40px', color: '#666' }}>No classes yet. Click "Create Class" to create one.</p>
-            ) : (
-              <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: '700px' }}>
-                <thead>
-                  <tr style={{ background: '#1a3a5c', color: 'white' }}>
-                    <th style={{ padding: '10px' }}>Grade</th><th style={{ padding: '10px' }}>Class Name</th>
-                    <th style={{ padding: '10px' }}>Academic Year</th><th style={{ padding: '10px' }}>Teacher</th><th style={{ padding: '10px' }}>Actions</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {classes.map(c => {
-                    let teacherDisplay = 'Not Assigned';
-                    let teacherColor = '#e74c3c';
-                    if (c.teacherId && typeof c.teacherId === 'object' && c.teacherId.fullName) {
-                      teacherDisplay = c.teacherId.fullName;
-                      teacherColor = '#27ae60';
-                    }
-                    return (
-                      <tr key={c._id} style={{ borderBottom: '1px solid #e0e0e0' }}>
-                        <td style={{ padding: '10px' }}>{c.grade}</td>
-                        <td style={{ padding: '10px' }}>{c.className}</td>
-                        <td style={{ padding: '10px' }}>{c.academicYear}</td>
-                        <td style={{ padding: '10px' }}>
-                          <span style={{ color: teacherColor, fontWeight: '500' }}><i className="fas fa-chalkboard-user"></i> {teacherDisplay}</span>
-                        </td>
-                        <td style={{ padding: '10px' }}>
-                          <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
-                            <button onClick={() => handleAssignTeacher(c)} style={{ background: c.teacherId ? '#f39c12' : '#27ae60', color: 'white', border: 'none', padding: '4px 10px', borderRadius: '4px', cursor: 'pointer', fontSize: '0.75rem' }}>
-                              <i className={`fas ${c.teacherId ? 'fa-exchange-alt' : 'fa-user-plus'}`}></i>
-                              {c.teacherId ? ' Change Teacher' : ' Assign Teacher'}
-                            </button>
-                            <button onClick={() => handleDeleteClass(c)} style={{ background: '#e74c3c', color: 'white', border: 'none', padding: '4px 10px', borderRadius: '4px', cursor: 'pointer', fontSize: '0.75rem' }}>
-                              <i className="fas fa-trash"></i> Delete
-                            </button>
-                          </div>
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            )}
-          </div>
-        )}
-
+    {classes.length === 0 ? (
+      <p style={{ textAlign: 'center', padding: '40px', color: '#666' }}>No classes yet. Click "Create Class" to create one.</p>
+    ) : (
+      <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: '700px' }}>
+        <thead>
+          <tr style={{ background: '#1a3a5c', color: 'white' }}>
+            <th style={{ padding: '10px' }}>Grade</th>
+            <th style={{ padding: '10px' }}>Class Name</th>
+            <th style={{ padding: '10px' }}>Academic Year</th>
+            <th style={{ padding: '10px' }}>Teacher</th>
+            <th style={{ padding: '10px' }}>Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          {classes.map(c => (
+            <tr key={c._id} style={{ borderBottom: '1px solid #e0e0e0' }}>
+              <td style={{ padding: '10px' }}>{c.grade}</td>
+              <td style={{ padding: '10px' }}>{c.className}</td>
+              <td style={{ padding: '10px' }}>{c.academicYear}</td>
+              <td style={{ padding: '10px' }}>
+                {c.teacherId && typeof c.teacherId === 'object' && c.teacherId.fullName ? (
+                  <span style={{ color: '#27ae60', fontWeight: '500' }}>
+                    <i className="fas fa-chalkboard-user"></i> {c.teacherId.fullName}
+                  </span>
+                ) : (
+                  <span style={{ color: '#e74c3c' }}>Not Assigned</span>
+                )}
+              </td>
+              <td style={{ padding: '10px' }}>
+                <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+                  <button
+                    onClick={() => handleAssignTeacher(c)}
+                    style={{
+                      background: c.teacherId ? '#f39c12' : '#27ae60',
+                      color: 'white',
+                      border: 'none',
+                      padding: '4px 10px',
+                      borderRadius: '4px',
+                      cursor: 'pointer',
+                      fontSize: '0.75rem'
+                    }}
+                  >
+                    <i className={`fas ${c.teacherId ? 'fa-exchange-alt' : 'fa-user-plus'}`}></i>
+                    {c.teacherId ? ' Change Teacher' : ' Assign Teacher'}
+                  </button>
+                  <button
+                    onClick={() => handleDeleteClass(c)}
+                    style={{
+                      background: '#e74c3c',
+                      color: 'white',
+                      border: 'none',
+                      padding: '4px 10px',
+                      borderRadius: '4px',
+                      cursor: 'pointer',
+                      fontSize: '0.75rem'
+                    }}
+                  >
+                    <i className="fas fa-trash"></i> Delete
+                  </button>
+                </div>
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    )}
+  </div>
+)}
         {/* News Tab */}
         {activeTab === 'news' && (
           <div style={{ background: 'white', borderRadius: '12px', padding: '1rem' }}>
