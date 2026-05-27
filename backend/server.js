@@ -33,31 +33,171 @@ const emailTransporter = nodemailer.createTransport({
   }
 });
 
-// Email sending function for admissions
-const sendAdmissionEmail = async (applicationData) => {
-  const adminEmail = 'academic@essa.rw'; // Academic admin email
-  const studentEmail = applicationData.email;
+/// ==================== ADMISSION APPLICATION SCHEMA ====================
+const admissionApplicationSchema = new mongoose.Schema({
+  fullName: { type: String, required: true },
+  dateOfBirth: { type: Date, required: true },
+  nationality: { type: String, default: 'Rwandan' },
+  nationalId: { type: String, default: '' },
+  email: { type: String, required: true },
+  phone: { type: String, required: true },
+  address: { type: String, required: true },
+  level: { type: String, required: true },
+  previousSchool: { type: String, required: true },
+  lastAverage: { type: Number, required: true },
+  achievements: { type: String, default: '' },
+  parentName: { type: String, required: true },
+  parentPhone: { type: String, required: true },
+  parentEmail: { type: String, default: '' },
+  parentOccupation: { type: String, default: '' },
+  applyScholarship: { type: Boolean, default: false },
+  reportCardUrl: { type: String, default: '' },
+  birthCertUrl: { type: String, default: '' },
+  studentPhotoUrl: { type: String, default: '' },
+  applicationNumber: { type: String, unique: true },
+  status: { 
+    type: String, 
+    enum: ['pending', 'reviewing', 'accepted', 'rejected', 'waitlisted'], 
+    default: 'pending' 
+  },
+  reviewedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+  reviewNotes: { type: String, default: '' },
+  reviewedAt: { type: Date },
+  createdAt: { type: Date, default: Date.now },
+  updatedAt: { type: Date, default: Date.now }
+});
+
+// Generate application number before saving
+admissionApplicationSchema.pre('save', function(next) {
+  if (!this.applicationNumber) {
+    const year = new Date().getFullYear();
+    const random = Math.floor(Math.random() * 10000).toString().padStart(4, '0');
+    this.applicationNumber = `ESS${year}${random}`;
+  }
+  this.updatedAt = new Date();
+  next();
+});
+
+const AdmissionApplication = mongoose.model('AdmissionApplication', admissionApplicationSchema);
+
+// ==================== ADMISSION ROUTES ====================
+
+// Submit admission application (PUBLIC - no auth required)
+app.post('/api/admissions/submit', async (req, res) => {
+  try {
+    const applicationData = req.body;
+    
+    console.log('📝 New admission application received:', applicationData.fullName);
+    
+    // Validate required fields
+    const requiredFields = ['fullName', 'dateOfBirth', 'email', 'phone', 'address', 'level', 'previousSchool', 'lastAverage', 'parentName', 'parentPhone'];
+    for (const field of requiredFields) {
+      if (!applicationData[field]) {
+        return res.status(400).json({ 
+          success: false, 
+          message: `Missing required field: ${field}` 
+        });
+      }
+    }
+    
+    // Validate email format
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(applicationData.email)) {
+      return res.status(400).json({ 
+        success: false, 
+        message: 'Invalid email address format' 
+      });
+    }
+    
+    // Validate phone format (Rwanda)
+    const phoneRegex = /^(\+250|0)[7-9][0-9]{8}$/;
+    if (!phoneRegex.test(applicationData.phone)) {
+      return res.status(400).json({ 
+        success: false, 
+        message: 'Invalid phone number format. Use 0788123456 or +250788123456' 
+      });
+    }
+    
+    // Create new application
+    const newApplication = new AdmissionApplication({
+      fullName: applicationData.fullName,
+      dateOfBirth: new Date(applicationData.dateOfBirth),
+      nationality: applicationData.nationality || 'Rwandan',
+      nationalId: applicationData.nationalId || '',
+      email: applicationData.email,
+      phone: applicationData.phone,
+      address: applicationData.address,
+      level: applicationData.level,
+      previousSchool: applicationData.previousSchool,
+      lastAverage: parseFloat(applicationData.lastAverage),
+      achievements: applicationData.achievements || '',
+      parentName: applicationData.parentName,
+      parentPhone: applicationData.parentPhone,
+      parentEmail: applicationData.parentEmail || '',
+      parentOccupation: applicationData.parentOccupation || '',
+      applyScholarship: applicationData.applyScholarship || false,
+      status: 'pending'
+    });
+    
+    await newApplication.save();
+    console.log(`✅ Application saved with number: ${newApplication.applicationNumber}`);
+    
+    // Send email notifications (if email is configured)
+    try {
+      await sendAdmissionEmailToAdmin(newApplication);
+      await sendConfirmationEmailToApplicant(newApplication);
+      console.log('📧 Emails sent successfully');
+    } catch (emailError) {
+      console.error('Email sending error:', emailError);
+      // Don't fail the request if email fails, just log it
+    }
+    
+    res.status(201).json({
+      success: true,
+      message: 'Application submitted successfully!',
+      applicationNumber: newApplication.applicationNumber,
+      applicationId: newApplication._id
+    });
+    
+  } catch (error) {
+    console.error('Admission submission error:', error);
+    res.status(500).json({ 
+      success: false, 
+      message: 'Failed to submit application. Please try again later.' 
+    });
+  }
+});
+
+// Email to Academic Admin
+const sendAdmissionEmailToAdmin = async (application) => {
+  const transporter = nodemailer.createTransport({
+    service: 'gmail',
+    auth: {
+      user: process.env.EMAIL_USER,
+      pass: process.env.EMAIL_PASS
+    }
+  });
   
-  // Email to Academic Admin
-  const adminMailOptions = {
-    from: process.env.EMAIL_USER || 'noreply@essanyarugunga.rw',
+  const adminEmail = 'academic@essa.rw'; // Academic admin email
+  
+  const mailOptions = {
+    from: process.env.EMAIL_USER,
     to: adminEmail,
-    subject: `📋 New Admission Application - ${applicationData.fullName}`,
+    subject: `📋 NEW ADMISSION APPLICATION - ${application.fullName}`,
     html: `
       <!DOCTYPE html>
       <html>
       <head>
         <style>
-          body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
+          body { font-family: Arial, sans-serif; line-height: 1.6; }
           .container { max-width: 600px; margin: 0 auto; padding: 20px; }
-          .header { background: #1a3a5c; color: white; padding: 20px; text-align: center; border-radius: 8px 8px 0 0; }
-          .content { background: #f5f5f5; padding: 20px; border-radius: 0 0 8px 8px; }
-          .section { background: white; padding: 15px; margin-bottom: 15px; border-radius: 8px; border-left: 4px solid #ffc107; }
-          .section-title { color: #1a3a5c; margin-bottom: 10px; font-size: 18px; border-bottom: 2px solid #ffc107; display: inline-block; }
-          .label { font-weight: bold; color: #555; width: 140px; display: inline-block; }
-          .value { color: #333; }
-          .status { display: inline-block; padding: 5px 10px; background: #ffc107; color: #1a3a5c; border-radius: 4px; font-weight: bold; }
-          .footer { text-align: center; padding: 15px; font-size: 12px; color: #777; }
+          .header { background: #1a3a5c; color: white; padding: 20px; text-align: center; }
+          .content { background: #f5f5f5; padding: 20px; }
+          .section { background: white; padding: 15px; margin-bottom: 15px; border-radius: 8px; }
+          .section-title { color: #1a3a5c; border-bottom: 2px solid #ffc107; padding-bottom: 5px; }
+          .label { font-weight: bold; width: 140px; display: inline-block; }
+          .status { background: #ffc107; color: #1a3a5c; padding: 3px 8px; border-radius: 4px; }
+          .footer { text-align: center; font-size: 12px; color: #777; margin-top: 20px; }
         </style>
       </head>
       <body>
@@ -69,47 +209,46 @@ const sendAdmissionEmail = async (applicationData) => {
           <div class="content">
             <div class="section">
               <h3 class="section-title">📝 Application Details</h3>
-              <p><span class="label">Application Number:</span> <span class="value"><strong>${applicationData.applicationNumber || 'Generating...'}</strong></span></p>
-              <p><span class="label">Submitted Date:</span> <span class="value">${new Date().toLocaleString()}</span></p>
+              <p><span class="label">Application Number:</span> <strong>${application.applicationNumber}</strong></p>
+              <p><span class="label">Submitted:</span> ${new Date(application.createdAt).toLocaleString()}</p>
               <p><span class="label">Status:</span> <span class="status">PENDING REVIEW</span></p>
             </div>
             
             <div class="section">
               <h3 class="section-title">👤 Student Information</h3>
-              <p><span class="label">Full Name:</span> <span class="value">${applicationData.fullName}</span></p>
-              <p><span class="label">Date of Birth:</span> <span class="value">${new Date(applicationData.dateOfBirth).toLocaleDateString()}</span></p>
-              <p><span class="label">Nationality:</span> <span class="value">${applicationData.nationality}</span></p>
-              <p><span class="label">Email:</span> <span class="value">${applicationData.email}</span></p>
-              <p><span class="label">Phone:</span> <span class="value">${applicationData.phone}</span></p>
-              <p><span class="label">Address:</span> <span class="value">${applicationData.address}</span></p>
+              <p><span class="label">Full Name:</span> ${application.fullName}</p>
+              <p><span class="label">Date of Birth:</span> ${new Date(application.dateOfBirth).toLocaleDateString()}</p>
+              <p><span class="label">Nationality:</span> ${application.nationality}</p>
+              <p><span class="label">Email:</span> ${application.email}</p>
+              <p><span class="label">Phone:</span> ${application.phone}</p>
+              <p><span class="label">Address:</span> ${application.address}</p>
             </div>
             
             <div class="section">
               <h3 class="section-title">📚 Academic Information</h3>
-              <p><span class="label">Applying for Level:</span> <span class="value">${applicationData.level}</span></p>
-              <p><span class="label">Previous School:</span> <span class="value">${applicationData.previousSchool}</span></p>
-              <p><span class="label">Last Year Average:</span> <span class="value">${applicationData.lastAverage}%</span></p>
-              <p><span class="label">Achievements:</span> <span class="value">${applicationData.achievements || 'None provided'}</span></p>
-              <p><span class="label">Scholarship Request:</span> <span class="value">${applicationData.applyScholarship ? 'Yes' : 'No'}</span></p>
+              <p><span class="label">Level:</span> ${application.level}</p>
+              <p><span class="label">Previous School:</span> ${application.previousSchool}</p>
+              <p><span class="label">Last Average:</span> ${application.lastAverage}%</p>
+              <p><span class="label">Achievements:</span> ${application.achievements || 'None'}</p>
+              <p><span class="label">Scholarship:</span> ${application.applyScholarship ? 'Yes' : 'No'}</p>
             </div>
             
             <div class="section">
               <h3 class="section-title">👪 Parent/Guardian Information</h3>
-              <p><span class="label">Parent Name:</span> <span class="value">${applicationData.parentName}</span></p>
-              <p><span class="label">Parent Phone:</span> <span class="value">${applicationData.parentPhone}</span></p>
-              <p><span class="label">Parent Email:</span> <span class="value">${applicationData.parentEmail || 'Not provided'}</span></p>
-              <p><span class="label">Parent Occupation:</span> <span class="value">${applicationData.parentOccupation || 'Not provided'}</span></p>
+              <p><span class="label">Name:</span> ${application.parentName}</p>
+              <p><span class="label">Phone:</span> ${application.parentPhone}</p>
+              <p><span class="label">Email:</span> ${application.parentEmail || 'Not provided'}</p>
+              <p><span class="label">Occupation:</span> ${application.parentOccupation || 'Not provided'}</p>
             </div>
             
             <div style="margin-top: 20px; text-align: center;">
-              <a href="http://localhost:5173/portal/login" style="background: #1a3a5c; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px; display: inline-block;">
+              <a href="http://localhost:5173/academic-admin/applications" style="background: #1a3a5c; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px;">
                 📊 View in Admin Dashboard
               </a>
             </div>
           </div>
           <div class="footer">
             <p>This is an automated notification from ESSA Nyarugunga School Admission System.</p>
-            <p>© ${new Date().getFullYear()} ESSA Nyarugunga School | All Rights Reserved</p>
           </div>
         </div>
       </body>
@@ -117,22 +256,34 @@ const sendAdmissionEmail = async (applicationData) => {
     `
   };
   
-  // Email to Applicant (Confirmation)
-  const applicantMailOptions = {
-    from: process.env.EMAIL_USER || 'noreply@essanyarugunga.rw',
-    to: studentEmail,
+  await transporter.sendMail(mailOptions);
+};
+
+// Confirmation email to applicant
+const sendConfirmationEmailToApplicant = async (application) => {
+  const transporter = nodemailer.createTransport({
+    service: 'gmail',
+    auth: {
+      user: process.env.EMAIL_USER,
+      pass: process.env.EMAIL_PASS
+    }
+  });
+  
+  const mailOptions = {
+    from: process.env.EMAIL_USER,
+    to: application.email,
     subject: `✅ Application Received - ESSA Nyarugunga`,
     html: `
       <!DOCTYPE html>
       <html>
       <head>
         <style>
-          body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
+          body { font-family: Arial, sans-serif; line-height: 1.6; }
           .container { max-width: 600px; margin: 0 auto; padding: 20px; }
-          .header { background: #1a3a5c; color: white; padding: 20px; text-align: center; border-radius: 8px 8px 0 0; }
-          .content { background: #f5f5f5; padding: 20px; border-radius: 0 0 8px 8px; }
-          .footer { text-align: center; padding: 15px; font-size: 12px; color: #777; }
-          .button { background: #ffc107; color: #1a3a5c; padding: 10px 20px; text-decoration: none; border-radius: 5px; display: inline-block; }
+          .header { background: #1a3a5c; color: white; padding: 20px; text-align: center; }
+          .content { background: #f5f5f5; padding: 20px; }
+          .section { background: white; padding: 15px; border-radius: 8px; }
+          .footer { text-align: center; font-size: 12px; color: #777; margin-top: 20px; }
         </style>
       </head>
       <body>
@@ -142,37 +293,24 @@ const sendAdmissionEmail = async (applicationData) => {
             <p>Application Received Successfully!</p>
           </div>
           <div class="content">
-            <h3>Dear ${applicationData.fullName},</h3>
-            <p>Thank you for applying to <strong>ESSA Nyarugunga School</strong>! We have successfully received your admission application.</p>
-            
-            <div style="background: white; padding: 15px; border-radius: 8px; margin: 15px 0;">
-              <p><strong>📋 Application Number:</strong> ${applicationData.applicationNumber || 'Generating...'}</p>
-              <p><strong>📅 Submission Date:</strong> ${new Date().toLocaleString()}</p>
-              <p><strong>📚 Applied Level:</strong> ${applicationData.level}</p>
+            <div class="section">
+              <h3>Dear ${application.fullName},</h3>
+              <p>Thank you for applying to <strong>ESSA Nyarugunga School</strong>! We have successfully received your admission application.</p>
+              
+              <p><strong>📋 Application Number:</strong> ${application.applicationNumber}</p>
+              <p><strong>📅 Submission Date:</strong> ${new Date(application.createdAt).toLocaleString()}</p>
+              <p><strong>📚 Applied Level:</strong> ${application.level}</p>
               <p><strong>📧 Status:</strong> <span style="color: #ffc107;">Pending Review</span></p>
+              
+              <hr>
+              <p>Our admissions team will review your application and contact you within <strong>3-5 business days</strong> regarding the next steps.</p>
+              
+              <p>If you have any questions, please contact our admissions office:</p>
+              <p>📞 Phone: +250 788 123 456<br>📧 Email: admissions@essanyarugunga.rw</p>
             </div>
-            
-            <p>Our admissions team will review your application and contact you within <strong>3-5 business days</strong> regarding the next steps.</p>
-            
-            <div style="margin: 20px 0; text-align: center;">
-              <a href="https://wa.me/250788123456" class="button" style="background: #25D366; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px;">
-                💬 Contact Admissions
-              </a>
-            </div>
-            
-            <p><strong>Next Steps:</strong></p>
-            <ul>
-              <li>✓ Our team will review your application</li>
-              <li>✓ You may be contacted for an entrance examination</li>
-              <li>✓ You will receive admission decision within 7-10 days</li>
-            </ul>
-            
-            <p>If you have any questions, please contact our admissions office:</p>
-            <p>📞 Phone: +250 788 123 456<br>📧 Email: admissions@essanyarugunga.rw</p>
           </div>
           <div class="footer">
             <p>ESSA Nyarugunga School - Excellence in Science and Administrative Education</p>
-            <p>© ${new Date().getFullYear()} ESSA Nyarugunga School | All Rights Reserved</p>
           </div>
         </div>
       </body>
@@ -180,17 +318,130 @@ const sendAdmissionEmail = async (applicationData) => {
     `
   };
   
-  try {
-    await emailTransporter.sendMail(adminMailOptions);
-    await emailTransporter.sendMail(applicantMailOptions);
-    console.log(`✅ Admission emails sent for ${applicationData.fullName}`);
-    return true;
-  } catch (error) {
-    console.error('Email sending error:', error);
-    return false;
-  }
+  await transporter.sendMail(mailOptions);
 };
 
+// ==================== ACADEMIC ADMIN - VIEW APPLICATIONS ====================
+
+// Get all applications (Academic Admin only)
+app.get('/api/academic-admin/applications', authMiddleware, async (req, res) => {
+  try {
+    const currentUser = await User.findById(req.userId);
+    if (currentUser?.role !== 'academic_admin' && currentUser?.role !== 'super_admin') {
+      return res.status(403).json({ message: 'Access denied' });
+    }
+    
+    const { status, page = 1, limit = 20 } = req.query;
+    const query = {};
+    if (status && status !== 'all') query.status = status;
+    
+    const skip = (parseInt(page) - 1) * parseInt(limit);
+    
+    const applications = await AdmissionApplication.find(query)
+      .sort({ createdAt: -1 })
+      .skip(skip)
+      .limit(parseInt(limit));
+    
+    const total = await AdmissionApplication.countDocuments(query);
+    
+    res.json({
+      success: true,
+      data: applications,
+      pagination: {
+        currentPage: parseInt(page),
+        totalPages: Math.ceil(total / parseInt(limit)),
+        totalItems: total
+      }
+    });
+  } catch (error) {
+    console.error('Get applications error:', error);
+    res.status(500).json({ message: error.message });
+  }
+});
+
+// Get single application by ID
+app.get('/api/academic-admin/applications/:id', authMiddleware, async (req, res) => {
+  try {
+    const currentUser = await User.findById(req.userId);
+    if (currentUser?.role !== 'academic_admin' && currentUser?.role !== 'super_admin') {
+      return res.status(403).json({ message: 'Access denied' });
+    }
+    
+    const application = await AdmissionApplication.findById(req.params.id);
+    if (!application) {
+      return res.status(404).json({ message: 'Application not found' });
+    }
+    
+    res.json({ success: true, data: application });
+  } catch (error) {
+    console.error('Get application error:', error);
+    res.status(500).json({ message: error.message });
+  }
+});
+
+// Update application status
+app.put('/api/academic-admin/applications/:id/status', authMiddleware, async (req, res) => {
+  try {
+    const currentUser = await User.findById(req.userId);
+    if (currentUser?.role !== 'academic_admin' && currentUser?.role !== 'super_admin') {
+      return res.status(403).json({ message: 'Access denied' });
+    }
+    
+    const { status, reviewNotes } = req.body;
+    const application = await AdmissionApplication.findByIdAndUpdate(
+      req.params.id,
+      {
+        status,
+        reviewNotes: reviewNotes || '',
+        reviewedBy: req.userId,
+        reviewedAt: new Date(),
+        updatedAt: new Date()
+      },
+      { new: true }
+    );
+    
+    if (!application) {
+      return res.status(404).json({ message: 'Application not found' });
+    }
+    
+    res.json({ success: true, data: application });
+  } catch (error) {
+    console.error('Update application status error:', error);
+    res.status(500).json({ message: error.message });
+  }
+});
+
+// Get application statistics
+app.get('/api/academic-admin/applications/stats/summary', authMiddleware, async (req, res) => {
+  try {
+    const currentUser = await User.findById(req.userId);
+    if (currentUser?.role !== 'academic_admin' && currentUser?.role !== 'super_admin') {
+      return res.status(403).json({ message: 'Access denied' });
+    }
+    
+    const total = await AdmissionApplication.countDocuments();
+    const pending = await AdmissionApplication.countDocuments({ status: 'pending' });
+    const reviewing = await AdmissionApplication.countDocuments({ status: 'reviewing' });
+    const accepted = await AdmissionApplication.countDocuments({ status: 'accepted' });
+    const rejected = await AdmissionApplication.countDocuments({ status: 'rejected' });
+    const scholarshipRequests = await AdmissionApplication.countDocuments({ applyScholarship: true });
+    
+    res.json({
+      success: true,
+      stats: {
+        total,
+        pending,
+        reviewing,
+        accepted,
+        rejected,
+        scholarshipRequests
+      }
+    });
+  } catch (error) {
+    console.error('Get stats error:', error);
+    res.status(500).json({ message: error.message });
+  }
+});
 // ==================== MODELS ====================
 
 const userSchema = new mongoose.Schema({

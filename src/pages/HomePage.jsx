@@ -20,9 +20,21 @@ import debateClubImg from '../assets/debate-club.png';
 import musicClubImg from '../assets/music-club.png';
 import sportsClubImg from '../assets/sports-club.png';
 
+// Hero slider images (only images, no captions)
+const heroSliderImages = [
+  heroBg,
+  studentsImage,
+  classroomImg,
+  scienceLabImg,
+  graduationImg,
+  footballImg,
+  campusImage
+];
+
 const HomePage = () => {
   const [counterValues, setCounterValues] = useState({ students: 0, teachers: 0, years: 0 });
   const [activeGalleryFilter, setActiveGalleryFilter] = useState('all');
+  const [currentSlide, setCurrentSlide] = useState(0);
 
   // Gallery items with local images
   const galleryItems = [
@@ -83,6 +95,15 @@ const HomePage = () => {
     { icon: 'fas fa-user-graduate', title: 'Guidance & Counseling', description: 'Moral and spiritual guidance sessions every Thursday' }
   ];
 
+  // Auto-slide functionality for background images
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setCurrentSlide((prev) => (prev + 1) % heroSliderImages.length);
+    }, 5000); // Change slide every 5 seconds
+
+    return () => clearInterval(interval);
+  }, []);
+
   // Counter animation
   useEffect(() => {
     const targets = { students: 1000, teachers: 40, years: 20 };
@@ -137,9 +158,18 @@ const HomePage = () => {
     <>
       <Navbar />
       
-      {/* Hero Section - Centered aligned */}
-      <section className="hero" style={{ backgroundImage: `url(${heroBg})` }}>
-        <div className="hero-overlay"></div>
+      {/* Hero Section with Background Image Slider - No captions, just images */}
+      <section className="hero">
+        <div className="hero-slider">
+          {heroSliderImages.map((image, index) => (
+            <div 
+              key={index}
+              className={`hero-slide ${index === currentSlide ? 'active' : ''}`}
+              style={{ backgroundImage: `url(${image})` }}
+            />
+          ))}
+          <div className="hero-overlay"></div>
+        </div>
         <div className="container hero-content">
           <div className="hero-badge">
             <i className="fas fa-star-of-life"></i> EXCELLENCE IN EDUCATION
@@ -150,6 +180,17 @@ const HomePage = () => {
             <Link to="/admissions" className="btn btn-primary"><i className="fas fa-user-graduate"></i> Apply Now</Link>
             <Link to="/about" className="btn btn-secondary"><i className="fas fa-play-circle"></i> Learn More</Link>
           </div>
+        </div>
+        
+        {/* Slider Dots - Optional (can remove if not needed) */}
+        <div className="slider-dots">
+          {heroSliderImages.map((_, index) => (
+            <button
+              key={index}
+              className={`dot ${index === currentSlide ? 'active' : ''}`}
+              onClick={() => setCurrentSlide(index)}
+            />
+          ))}
         </div>
       </section>
 
@@ -352,8 +393,171 @@ const HomePage = () => {
 
       <Footer />
 
-      {/* Add this CSS to your main CSS file or as a style tag */}
+      {/* Styles for Hero Slider and other sections */}
       <style>{`
+        /* ========== HERO SLIDER STYLES ========== */
+        .hero {
+          position: relative;
+          min-height: 90vh;
+          display: flex;
+          align-items: center;
+          overflow: hidden;
+        }
+        
+        .hero-slider {
+          position: absolute;
+          top: 0;
+          left: 0;
+          width: 100%;
+          height: 100%;
+          z-index: 0;
+        }
+        
+        .hero-slide {
+          position: absolute;
+          top: 0;
+          left: 0;
+          width: 100%;
+          height: 100%;
+          background-size: cover;
+          background-position: center;
+          background-repeat: no-repeat;
+          opacity: 0;
+          transition: opacity 1.2s ease-in-out;
+        }
+        
+        .hero-slide.active {
+          opacity: 1;
+          z-index: 1;
+        }
+        
+        .hero-overlay {
+          position: absolute;
+          top: 0;
+          left: 0;
+          width: 100%;
+          height: 100%;
+    background: linear-gradient(
+  135deg,
+  hsla(220, 60%, 18%, 0.80) 0%,
+  hsla(45, 90%, 70%, 0.45) 100%
+);
+          z-index: 2;
+        }
+        
+        .hero-content {
+          position: relative;
+          z-index: 3;
+          text-align: center;
+          color: white;
+          width: 100%;
+        }
+        
+        .hero-badge {
+          display: inline-block;
+          background: rgba(255,193,7,0.2);
+          color: #ffc107;
+          padding: 8px 20px;
+          border-radius: 30px;
+          font-size: 0.85rem;
+          margin-bottom: 1rem;
+          backdrop-filter: blur(5px);
+        }
+        
+        .hero-content h1 {
+          font-size: 3rem;
+          margin-bottom: 1rem;
+        }
+        
+        .hero-content .highlight {
+          color: #ffc107;
+        }
+        
+        .hero-content p {
+          font-size: 1.2rem;
+          opacity: 0.95;
+          margin-bottom: 2rem;
+          max-width: 700px;
+          margin-left: auto;
+          margin-right: auto;
+        }
+        
+        .hero-buttons {
+          display: flex;
+          gap: 1rem;
+          justify-content: center;
+          flex-wrap: wrap;
+        }
+        
+        .btn-primary {
+          background: #ffc107;
+          color: #1e3c72;
+          padding: 12px 28px;
+          border-radius: 30px;
+          text-decoration: none;
+          font-weight: 600;
+          transition: all 0.3s ease;
+          display: inline-flex;
+          align-items: center;
+          gap: 8px;
+        }
+        
+        .btn-primary:hover {
+          background: #e0a800;
+          transform: translateY(-2px);
+        }
+        
+        .btn-secondary {
+          background: transparent;
+          color: white;
+          padding: 12px 28px;
+          border-radius: 30px;
+          text-decoration: none;
+          font-weight: 600;
+          border: 2px solid white;
+          transition: all 0.3s ease;
+          display: inline-flex;
+          align-items: center;
+          gap: 8px;
+        }
+        
+        .btn-secondary:hover {
+          background: white;
+          color: #1e3c72;
+          transform: translateY(-2px);
+        }
+        
+        /* Slider Dots */
+        .slider-dots {
+          position: absolute;
+          bottom: 30px;
+          left: 50%;
+          transform: translateX(-50%);
+          display: flex;
+          gap: 12px;
+          z-index: 10;
+        }
+        
+        .dot {
+          width: 10px;
+          height: 10px;
+          background: rgba(255,255,255,0.5);
+          border: none;
+          border-radius: 50%;
+          cursor: pointer;
+          transition: all 0.3s ease;
+          padding: 0;
+        }
+        
+        .dot.active {
+          background: #ffc107;
+          transform: scale(1.3);
+        }
+        
+        .dot:hover {
+          background: #ffc107;
+        }
+        
         /* Section alignment fixes */
         .about-grid,
         .admissions-grid {
@@ -623,6 +827,18 @@ const HomePage = () => {
         
         /* Responsive */
         @media (max-width: 768px) {
+          .hero {
+            min-height: 70vh;
+          }
+          
+          .hero-content h1 {
+            font-size: 1.8rem;
+          }
+          
+          .hero-content p {
+            font-size: 0.9rem;
+          }
+          
           .about-grid,
           .admissions-grid {
             grid-template-columns: 1fr;
@@ -646,6 +862,15 @@ const HomePage = () => {
           
           .spiritual-grid {
             grid-template-columns: 1fr;
+          }
+          
+          .slider-dots {
+            bottom: 15px;
+          }
+          
+          .dot {
+            width: 8px;
+            height: 8px;
           }
         }
       `}</style>
