@@ -340,7 +340,7 @@ const HomePage = () => {
               </div>
               <div className="admissions-buttons">
                 <Link to="/admissions" className="btn btn-primary"><i className="fas fa-download"></i> Download Form</Link>
-                <Link to="/portal/login" className="btn btn-outline"><i className="fas fa-globe"></i> Apply Online</Link>
+                <Link to="/admissions" className="btn btn-outline"><i className="fas fa-globe"></i> Apply Online</Link>
               </div>
             </div>
             <div className="admissions-image">
