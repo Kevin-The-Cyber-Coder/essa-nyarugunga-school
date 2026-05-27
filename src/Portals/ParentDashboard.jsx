@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import Swal from 'sweetalert2';
 import io from 'socket.io-client';
-import ChatModal from '../../components/ChatModal';
+import ChatModal from '../components/ChatModal';
 
 const API_URL = 'http://localhost:5000/api';
 
