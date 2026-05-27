@@ -20,7 +20,7 @@ const SuperAdminDashboard = () => {
   const [permissions, setPermissions] = useState([]);
   const [permissionTrends, setPermissionTrends] = useState({});
   
-  // Chat states - Moved to sidebar
+  // Chat states
   const [isChatModalOpen, setIsChatModalOpen] = useState(false);
   const [selectedChatUser, setSelectedChatUser] = useState(null);
   const [users, setUsers] = useState([]);
@@ -37,32 +37,24 @@ const SuperAdminDashboard = () => {
 
   useEffect(() => {
     const checkMobile = () => {
-      setIsMobile(window.innerWidth <= 768);
-      if (window.innerWidth > 768) setMobileMenuOpen(false);
+      const mobile = window.innerWidth <= 768;
+      setIsMobile(mobile);
+      if (mobile) setMobileMenuOpen(false);
     };
     checkMobile();
     window.addEventListener('resize', checkMobile);
     return () => window.removeEventListener('resize', checkMobile);
   }, []);
 
-  // Initialize Socket.IO
   useEffect(() => {
     const newSocket = io('http://localhost:5000');
     setSocket(newSocket);
-    
     const userId = localStorage.getItem('userId');
-    if (userId) {
-      newSocket.emit('join', userId);
-    }
-    
-    newSocket.on('newMessage', (message) => {
-      if (selectedConversation && message.senderId === selectedConversation.participant?.id) {
-        setMessages(prev => [...prev, message]);
-      }
+    if (userId) newSocket.emit('join', userId);
+    newSocket.on('newMessage', () => {
       fetchUnreadCount();
       fetchUsers();
     });
-    
     return () => newSocket.disconnect();
   }, []);
 
@@ -85,10 +77,10 @@ const SuperAdminDashboard = () => {
     const token = getToken();
     try {
       const [adminsRes, announcementsRes, casesRes, permissionsRes] = await Promise.all([
-        fetch(`${API_URL}/super-admin/admins`, { headers: { 'Authorization': `Bearer ${token}` } }),
-        fetch(`${API_URL}/super-admin/announcements`, { headers: { 'Authorization': `Bearer ${token}` } }),
-        fetch(`${API_URL}/super-admin/discipline-cases`, { headers: { 'Authorization': `Bearer ${token}` } }),
-        fetch(`${API_URL}/super-admin/permissions`, { headers: { 'Authorization': `Bearer ${token}` } })
+        fetch(`${API_URL}/super-admin/admins`, { headers: { Authorization: `Bearer ${token}` } }),
+        fetch(`${API_URL}/super-admin/announcements`, { headers: { Authorization: `Bearer ${token}` } }),
+        fetch(`${API_URL}/super-admin/discipline-cases`, { headers: { Authorization: `Bearer ${token}` } }),
+        fetch(`${API_URL}/super-admin/permissions`, { headers: { Authorization: `Bearer ${token}` } })
       ]);
       
       if (adminsRes.ok) setAdmins(await adminsRes.json());
@@ -114,12 +106,9 @@ const SuperAdminDashboard = () => {
     const token = getToken();
     try {
       const response = await fetch(`${API_URL}/messages/users`, {
-        headers: { 'Authorization': `Bearer ${token}` }
+        headers: { Authorization: `Bearer ${token}` }
       });
-      if (response.ok) {
-        const data = await response.json();
-        setUsers(data);
-      }
+      if (response.ok) setUsers(await response.json());
     } catch (error) {
       console.error('Error fetching users:', error);
     }
@@ -129,12 +118,9 @@ const SuperAdminDashboard = () => {
     const token = getToken();
     try {
       const response = await fetch(`${API_URL}/messages/user/${userId}`, {
-        headers: { 'Authorization': `Bearer ${token}` }
+        headers: { Authorization: `Bearer ${token}` }
       });
-      if (response.ok) {
-        const data = await response.json();
-        setMessages(data);
-      }
+      if (response.ok) setMessages(await response.json());
     } catch (error) {
       console.error('Error fetching messages:', error);
     }
@@ -144,7 +130,7 @@ const SuperAdminDashboard = () => {
     const token = getToken();
     try {
       const response = await fetch(`${API_URL}/messages/unread/count`, {
-        headers: { 'Authorization': `Bearer ${token}` }
+        headers: { Authorization: `Bearer ${token}` }
       });
       if (response.ok) {
         const data = await response.json();
@@ -157,31 +143,21 @@ const SuperAdminDashboard = () => {
 
   const handleSendMessage = async () => {
     if (!messageText.trim() || !selectedConversation) return;
-    
     const token = getToken();
     try {
       const response = await fetch(`${API_URL}/messages/send`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
-        },
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
         body: JSON.stringify({
           receiverId: selectedConversation.participant.id,
           content: messageText
         })
       });
-      
       if (response.ok) {
         const newMessage = await response.json();
         setMessages([...messages, newMessage.message]);
         setMessageText('');
-        if (socket) {
-          socket.emit('sendMessage', {
-            receiverId: selectedConversation.participant.id,
-            ...newMessage.message
-          });
-        }
+        if (socket) socket.emit('sendMessage', { receiverId: selectedConversation.participant.id, ...newMessage.message });
         fetchUsers();
         fetchUnreadCount();
       }
@@ -203,9 +179,8 @@ const SuperAdminDashboard = () => {
 
   const handleSendNewMessage = async (e) => {
     e.preventDefault();
-    const receiverId = document.getElementById('newMessageReceiver').value;
-    const subject = document.getElementById('newMessageSubject').value;
-    const content = document.getElementById('newMessageContent').value;
+    const receiverId = document.getElementById('newMessageReceiver')?.value;
+    const content = document.getElementById('newMessageContent')?.value;
     
     if (!receiverId || !content) {
       Swal.fire('Error', 'Please select recipient and enter message', 'error');
@@ -216,13 +191,9 @@ const SuperAdminDashboard = () => {
     try {
       const response = await fetch(`${API_URL}/messages/send`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
-        },
-        body: JSON.stringify({ receiverId, content, subject: subject || 'New Message' })
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ receiverId, content, subject: 'New Message' })
       });
-      
       if (response.ok) {
         Swal.fire('Success', 'Message sent successfully!', 'success');
         setChatActiveTab('inbox');
@@ -235,9 +206,7 @@ const SuperAdminDashboard = () => {
   };
 
   const handleOpenChatModal = (user = null) => {
-    if (user) {
-      setSelectedChatUser(user);
-    }
+    if (user) setSelectedChatUser(user);
     setIsChatModalOpen(true);
   };
 
@@ -247,17 +216,20 @@ const SuperAdminDashboard = () => {
     fetchUnreadCount();
   };
 
-  // Create Sub-Admin
   const handleCreateAdmin = async () => {
     const { value: formValues } = await Swal.fire({
       title: 'Create Sub-Admin',
       html: `
-        <div class="admin-form">
-          <div class="form-group"><i class="fas fa-user"></i><input type="text" id="fullName" placeholder="Full Name *" required></div>
-          <div class="form-group"><i class="fas fa-envelope"></i><input type="email" id="email" placeholder="Email *" required></div>
-          <div class="form-group"><i class="fas fa-lock"></i><input type="password" id="password" placeholder="Password (default: admin123)"></div>
-          <div class="form-group"><i class="fas fa-phone"></i><input type="tel" id="phone" placeholder="Phone Number"></div>
-          <div class="form-group"><i class="fas fa-user-tag"></i><select id="role"><option value="academic_admin">📚 Academic Admin</option><option value="discipline_admin">⚖️ Discipline Admin</option><option value="accounts_admin">💰 Accounts Admin</option></select></div>
+        <div style="text-align: left;">
+          <input type="text" id="fullName" class="swal2-input" placeholder="Full Name *" required>
+          <input type="email" id="email" class="swal2-input" placeholder="Email *" required>
+          <input type="password" id="password" class="swal2-input" placeholder="Password (default: admin123)">
+          <input type="tel" id="phone" class="swal2-input" placeholder="Phone Number">
+          <select id="role" class="swal2-select" style="width: 100%; padding: 8px; margin: 5px 0;">
+            <option value="academic_admin">📚 Academic Admin</option>
+            <option value="discipline_admin">⚖️ Discipline Admin</option>
+            <option value="accounts_admin">💰 Accounts Admin</option>
+          </select>
         </div>
       `,
       confirmButtonText: 'Create Admin',
@@ -265,17 +237,17 @@ const SuperAdminDashboard = () => {
       showCancelButton: true,
       width: '500px',
       preConfirm: () => {
-        const fullName = document.getElementById('fullName').value;
-        const email = document.getElementById('email').value;
+        const fullName = document.getElementById('fullName')?.value;
+        const email = document.getElementById('email')?.value;
         if (!fullName || !email) {
           Swal.showValidationMessage('Please fill required fields');
           return false;
         }
         return {
           fullName, email,
-          password: document.getElementById('password').value || 'admin123',
-          phone: document.getElementById('phone').value,
-          role: document.getElementById('role').value
+          password: document.getElementById('password')?.value || 'admin123',
+          phone: document.getElementById('phone')?.value || '',
+          role: document.getElementById('role')?.value
         };
       }
     });
@@ -284,34 +256,37 @@ const SuperAdminDashboard = () => {
       const token = getToken();
       const response = await fetch(`${API_URL}/super-admin/create-admin`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
         body: JSON.stringify(formValues)
       });
-      
       if (response.ok) {
-        Swal.fire({
-          title: '✅ Admin Created!',
-          html: `<div class="admin-credentials"><p><strong>Name:</strong> ${formValues.fullName}</p><p><strong>Email:</strong> ${formValues.email}</p><p><strong>Password:</strong> <code>${formValues.password}</code></p><p><strong>Role:</strong> ${formValues.role.replace('_', ' ').toUpperCase()}</p></div>`,
-          icon: 'success'
-        });
+        Swal.fire({ title: '✅ Admin Created!', html: `<p><strong>Name:</strong> ${formValues.fullName}</p><p><strong>Email:</strong> ${formValues.email}</p><p><strong>Password:</strong> <code>${formValues.password}</code></p>`, icon: 'success' });
         fetchAllData();
       } else {
-        const error = await response.json();
-        Swal.fire('Error', error.message || 'Failed to create admin', 'error');
+        Swal.fire('Error', 'Failed to create admin', 'error');
       }
     }
   };
 
-  // Post Announcement
   const handlePostAnnouncement = async () => {
     const { value: formValues } = await Swal.fire({
       title: 'Post Announcement',
       html: `
-        <div class="announcement-form">
-          <div class="form-group"><i class="fas fa-heading"></i><input type="text" id="title" placeholder="Title *" required></div>
-          <div class="form-group"><i class="fas fa-align-left"></i><textarea id="content" placeholder="Content *" required rows="4"></textarea></div>
-          <div class="form-row"><div class="form-group half"><i class="fas fa-users"></i><select id="audience"><option value="all">📢 All Users</option><option value="students">🎓 Students</option><option value="teachers">👨‍🏫 Teachers</option><option value="parents">👪 Parents</option><option value="admins">👑 Admins</option></select></div>
-          <div class="form-group half"><i class="fas fa-flag"></i><select id="priority"><option value="normal">ℹ️ Normal</option><option value="high">⚠️ High</option><option value="urgent">🔴 Urgent</option></select></div></div>
+        <div style="text-align: left;">
+          <input type="text" id="title" class="swal2-input" placeholder="Title *" required>
+          <textarea id="content" class="swal2-textarea" placeholder="Content *" rows="4" required></textarea>
+          <select id="audience" class="swal2-select" style="width: 100%; padding: 8px; margin: 5px 0;">
+            <option value="all">📢 All Users</option>
+            <option value="students">🎓 Students</option>
+            <option value="teachers">👨‍🏫 Teachers</option>
+            <option value="parents">👪 Parents</option>
+            <option value="admins">👑 Admins</option>
+          </select>
+          <select id="priority" class="swal2-select" style="width: 100%; padding: 8px; margin: 5px 0;">
+            <option value="normal">ℹ️ Normal</option>
+            <option value="high">⚠️ High</option>
+            <option value="urgent">🔴 Urgent</option>
+          </select>
         </div>
       `,
       confirmButtonText: '📢 Post Announcement',
@@ -319,13 +294,17 @@ const SuperAdminDashboard = () => {
       showCancelButton: true,
       width: '550px',
       preConfirm: () => {
-        const title = document.getElementById('title').value;
-        const content = document.getElementById('content').value;
+        const title = document.getElementById('title')?.value;
+        const content = document.getElementById('content')?.value;
         if (!title || !content) {
           Swal.showValidationMessage('Please fill required fields');
           return false;
         }
-        return { title, content, audience: document.getElementById('audience').value, priority: document.getElementById('priority').value };
+        return {
+          title, content,
+          audience: document.getElementById('audience')?.value,
+          priority: document.getElementById('priority')?.value
+        };
       }
     });
 
@@ -333,15 +312,12 @@ const SuperAdminDashboard = () => {
       const token = getToken();
       const response = await fetch(`${API_URL}/super-admin/announcements`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
         body: JSON.stringify(formValues)
       });
-      
       if (response.ok) {
         Swal.fire('✅ Success!', 'Announcement posted successfully', 'success');
         fetchAllData();
-      } else {
-        Swal.fire('Error', 'Failed to post announcement', 'error');
       }
     }
   };
@@ -355,12 +331,11 @@ const SuperAdminDashboard = () => {
       confirmButtonColor: '#e74c3c',
       confirmButtonText: 'Yes, Delete'
     });
-    
     if (result.isConfirmed) {
       const token = getToken();
       await fetch(`${API_URL}/super-admin/admins/${admin._id}`, {
         method: 'DELETE',
-        headers: { 'Authorization': `Bearer ${token}` }
+        headers: { Authorization: `Bearer ${token}` }
       });
       Swal.fire('Deleted!', 'Admin removed successfully', 'success');
       fetchAllData();
@@ -376,12 +351,11 @@ const SuperAdminDashboard = () => {
       confirmButtonColor: '#e74c3c',
       confirmButtonText: 'Yes, Delete'
     });
-    
     if (result.isConfirmed) {
       const token = getToken();
       await fetch(`${API_URL}/super-admin/announcements/${id}`, {
         method: 'DELETE',
-        headers: { 'Authorization': `Bearer ${token}` }
+        headers: { Authorization: `Bearer ${token}` }
       });
       Swal.fire('Deleted!', 'Announcement removed', 'success');
       fetchAllData();
@@ -393,13 +367,12 @@ const SuperAdminDashboard = () => {
       title: `Action for ${disciplineCase.studentName || 'Student'}`,
       html: `<p class="case-description">📝 ${disciplineCase.description}</p>`,
       input: 'select',
-      inputOptions: { 'warning': '⚠️ Warning', 'detention': '📝 Detention', 'community_service': '🤝 Community Service', 'suspension': '🚫 Suspension', 'expulsion': '❌ Expulsion' },
+      inputOptions: { warning: '⚠️ Warning', detention: '📝 Detention', community_service: '🤝 Community Service', suspension: '🚫 Suspension', expulsion: '❌ Expulsion' },
       inputPlaceholder: 'Select action',
       showCancelButton: true,
       confirmButtonText: 'Apply Action',
       confirmButtonColor: '#e74c3c'
     });
-    
     if (action) {
       const { value: details } = await Swal.fire({
         title: 'Action Details',
@@ -409,14 +382,12 @@ const SuperAdminDashboard = () => {
         showCancelButton: true,
         confirmButtonText: 'Submit'
       });
-      
       const token = getToken();
       await fetch(`${API_URL}/super-admin/discipline-cases/${disciplineCase._id}`, {
         method: 'PUT',
-        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
         body: JSON.stringify({ action, actionDetails: details || '', status: 'resolved' })
       });
-      
       Swal.fire('Action Applied!', `Student has been ${action}`, 'success');
       fetchAllData();
     }
@@ -433,12 +404,11 @@ const SuperAdminDashboard = () => {
       input: status === 'rejected' ? 'textarea' : null,
       inputLabel: status === 'rejected' ? 'Reason for rejection' : ''
     });
-    
     if (result.isConfirmed) {
       const token = getToken();
       await fetch(`${API_URL}/super-admin/permissions/${permission._id}`, {
         method: 'PUT',
-        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
         body: JSON.stringify({ status, rejectionReason: result.value || '' })
       });
       Swal.fire(`Permission ${status}!`, '', 'success');
@@ -502,67 +472,46 @@ const SuperAdminDashboard = () => {
 
         <nav className="sidebar-nav">
           {menuItems.map((item) => (
-            <button key={item.id} className={`nav-item ${activeTab === item.id ? 'active' : ''}`}
-              onClick={() => { setActiveTab(item.id); if (isMobile) setMobileMenuOpen(false); }}>
+            <button key={item.id} className={`nav-item ${activeTab === item.id ? 'active' : ''}`} onClick={() => { setActiveTab(item.id); if (isMobile) setMobileMenuOpen(false); }}>
               <i className={item.icon} style={{ color: item.color }}></i>
               {!sidebarCollapsed && <span>{item.label}</span>}
-              {item.id === 'messages' && unreadCount > 0 && !sidebarCollapsed && (
-                <span className="nav-badge">{unreadCount}</span>
-              )}
+              {item.id === 'messages' && unreadCount > 0 && !sidebarCollapsed && <span className="nav-badge">{unreadCount}</span>}
             </button>
           ))}
         </nav>
 
         <div className="sidebar-footer">
-          <button className="logout-btn" onClick={handleLogout}>
-            <i className="fas fa-sign-out-alt"></i>
-            {!sidebarCollapsed && <span>Logout</span>}
-          </button>
+          <button className="logout-btn" onClick={handleLogout}><i className="fas fa-sign-out-alt"></i>{!sidebarCollapsed && <span>Logout</span>}</button>
         </div>
       </aside>
 
       <main className="main-content" style={{ marginLeft: isMobile ? '0' : sidebarWidth }}>
         <div className="top-bar">
           <div className="top-bar-left">
-            <button className="mobile-menu-btn" onClick={() => setMobileMenuOpen(!mobileMenuOpen)}>
-              <i className="fas fa-bars"></i>
-            </button>
+            <button className="mobile-menu-btn" onClick={() => setMobileMenuOpen(!mobileMenuOpen)}><i className="fas fa-bars"></i></button>
             <h2>Super Admin Dashboard</h2>
           </div>
           <div className="top-bar-right">
             <div className="user-menu">
               <div className="user-avatar-small"><i className="fas fa-user-shield"></i></div>
-              <div className="user-details">
-                <span className="user-name">{userName}</span>
-                <span className="user-role-badge">Super Admin</span>
-              </div>
+              <div className="user-details"><span className="user-name">{userName}</span><span className="user-role-badge">Super Admin</span></div>
             </div>
           </div>
         </div>
 
         <div className="welcome-banner">
-          <div className="welcome-text">
-            <h1>Welcome back, {userName.split(' ')[0]}! 👑</h1>
-            <p>Here's what's happening across your school management system today.</p>
-          </div>
-          <div className="welcome-date">
-            <i className="fas fa-calendar-alt"></i>
-            <span>{new Date().toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}</span>
-          </div>
+          <div className="welcome-text"><h1>Welcome back, {userName.split(' ')[0]}! 👑</h1><p>Here's what's happening across your school management system today.</p></div>
+          <div className="welcome-date"><i className="fas fa-calendar-alt"></i><span>{new Date().toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}</span></div>
         </div>
 
         {/* Overview Tab */}
         {activeTab === 'overview' && (
           <div className="dashboard-content">
             <div className="stats-grid">
-              <div className="stat-card"><div className="stat-icon" style={{ background: '#e8f5e9' }}><i className="fas fa-users-cog" style={{ color: '#27ae60' }}></i></div>
-                <div className="stat-info"><h3>{admins.length}</h3><p>Sub-Admins</p><span className="stat-trend positive">+{admins.filter(a => new Date(a.createdAt).getMonth() === new Date().getMonth()).length} this month</span></div></div>
-              <div className="stat-card"><div className="stat-icon" style={{ background: '#fff3e0' }}><i className="fas fa-bullhorn" style={{ color: '#f39c12' }}></i></div>
-                <div className="stat-info"><h3>{announcements.length}</h3><p>Announcements</p><span className="stat-trend">{announcements.filter(a => a.priority === 'urgent').length} urgent</span></div></div>
-              <div className="stat-card"><div className="stat-icon" style={{ background: '#fdecea' }}><i className="fas fa-gavel" style={{ color: '#e74c3c' }}></i></div>
-                <div className="stat-info"><h3>{disciplineStats.total || 0}</h3><p>Discipline Cases</p><span className="stat-trend negative">{disciplineStats.pending || 0} pending</span></div></div>
-              <div className="stat-card"><div className="stat-icon" style={{ background: '#f3e5f5' }}><i className="fas fa-file-alt" style={{ color: '#9b59b6' }}></i></div>
-                <div className="stat-info"><h3>{permissionTrends.total || 0}</h3><p>Permissions</p><span className="stat-trend">{permissionTrends.approved || 0} approved</span></div></div>
+              <div className="stat-card"><div className="stat-icon" style={{ background: '#e8f5e9' }}><i className="fas fa-users-cog" style={{ color: '#27ae60' }}></i></div><div className="stat-info"><h3>{admins.length}</h3><p>Sub-Admins</p><span className="stat-trend positive">+{admins.filter(a => a.createdAt && new Date(a.createdAt).getMonth() === new Date().getMonth()).length} this month</span></div></div>
+              <div className="stat-card"><div className="stat-icon" style={{ background: '#fff3e0' }}><i className="fas fa-bullhorn" style={{ color: '#f39c12' }}></i></div><div className="stat-info"><h3>{announcements.length}</h3><p>Announcements</p><span className="stat-trend">{announcements.filter(a => a.priority === 'urgent').length} urgent</span></div></div>
+              <div className="stat-card"><div className="stat-icon" style={{ background: '#fdecea' }}><i className="fas fa-gavel" style={{ color: '#e74c3c' }}></i></div><div className="stat-info"><h3>{disciplineStats.total || 0}</h3><p>Discipline Cases</p><span className="stat-trend negative">{disciplineStats.pending || 0} pending</span></div></div>
+              <div className="stat-card"><div className="stat-icon" style={{ background: '#f3e5f5' }}><i className="fas fa-file-alt" style={{ color: '#9b59b6' }}></i></div><div className="stat-info"><h3>{permissionTrends.total || 0}</h3><p>Permissions</p><span className="stat-trend">{permissionTrends.approved || 0} approved</span></div></div>
             </div>
 
             <div className="quick-actions">
@@ -587,78 +536,22 @@ const SuperAdminDashboard = () => {
           </div>
         )}
 
-       {/* Admins Tab */}
-{activeTab === 'admins' && (
-  <div className="data-card">
-    
-    <div className="card-header">
-      <h2>
-        <i className="fas fa-users-cog"></i> System Administrators
-      </h2>
+        {/* Admins Tab */}
+        {activeTab === 'admins' && (
+          <div className="data-card">
+            <div className="card-header"><h2><i className="fas fa-users-cog"></i> System Administrators</h2><button onClick={handleCreateAdmin} className="btn-primary-sm"><i className="fas fa-plus"></i> Add Admin</button></div>
+            <div className="table-responsive"><table className="data-table"><thead><tr><th>Admin</th><th>Email</th><th>Role</th><th>Phone</th><th>Actions</th></tr></thead><tbody>
+              {admins.map(admin => (<tr key={admin._id}><td><strong>{admin.fullName}</strong></td><td>{admin.email}</td><td><span className={`role-badge ${admin.role}`}>{admin.role?.replace('_', ' ')}</span></td><td>{admin.phone || '-'}</td><td><button onClick={() => handleDeleteAdmin(admin)} className="delete-btn-sm"><i className="fas fa-trash"></i></button></td></tr>))}
+            </tbody></table></div>
+          </div>
+        )}
 
-      <button
-        onClick={handleCreateAdmin}
-        className="btn-primary-sm"
-      >
-        <i className="fas fa-plus"></i> Add Admin
-      </button>
-    </div>
-
-    <div className="table-responsive">
-      <table className="data-table">
-
-        <thead>
-          <tr>
-            <th>Admin</th>
-            <th>Email</th>
-            <th>Role</th>
-            <th>Phone</th>
-            <th>Actions</th>
-          </tr>
-        </thead>
-
-        <tbody>
-          {admins.map((admin) => (
-            <tr key={admin._id}>
-              
-              <td>
-                <strong>{admin.fullName}</strong>
-              </td>
-
-              <td>{admin.email}</td>
-
-              <td>
-                <span className={`role-badge ${admin.role}`}>
-                  {admin.role.replace('_', ' ')}
-                </span>
-              </td>
-
-              <td>{admin.phone || '-'}</td>
-
-              <td>
-                <button
-                  onClick={() => handleDeleteAdmin(admin)}
-                  className="delete-btn-sm"
-                >
-                  <i className="fas fa-trash"></i>
-                </button>
-              </td>
-
-            </tr>
-          ))}
-        </tbody>
-
-      </table>
-    </div>
-
-  </div>
-)}
         {/* Announcements Tab */}
         {activeTab === 'announcements' && (
           <div className="data-card">
             <div className="card-header"><h2><i className="fas fa-bullhorn"></i> School Announcements</h2><button onClick={handlePostAnnouncement} className="btn-primary-sm"><i className="fas fa-plus"></i> Post Announcement</button></div>
             <div className="announcements-list">{announcements.map(ann => (<div key={ann._id} className={`announcement-item ${ann.priority}`}><div className="announcement-header"><div><h3>{ann.title}</h3><span className={`priority-badge ${ann.priority}`}>{ann.priority === 'urgent' ? '🔴 URGENT' : ann.priority === 'high' ? '⚠️ HIGH' : 'ℹ️ NORMAL'}</span></div><button onClick={() => handleDeleteAnnouncement(ann._id)} className="delete-btn-sm"><i className="fas fa-trash"></i></button></div><p>{ann.content}</p><div className="announcement-footer"><span><i className="fas fa-users"></i> {ann.audience === 'all' ? 'All Users' : ann.audience}</span><span><i className="fas fa-calendar"></i> {new Date(ann.createdAt).toLocaleDateString()}</span></div></div>))}
-            {announcements.length === 0 && <p className="no-data">No announcements yet. Click "Post Announcement" to create one.</p>}</div>
+            {announcements.length === 0 && <p className="no-data">No announcements yet.</p>}</div>
           </div>
         )}
 
@@ -668,146 +561,30 @@ const SuperAdminDashboard = () => {
             <h2><i className="fas fa-gavel"></i> Discipline Cases</h2>
             <div className="discipline-stats"><div className="stat-chip">Total: {disciplineStats.total || 0}</div><div className="stat-chip pending">Pending: {disciplineStats.pending || 0}</div><div className="stat-chip resolved">Resolved: {disciplineStats.resolved || 0}</div></div>
             <div className="table-responsive"><table className="data-table"><thead><tr><th>Student</th><th>Category</th><th>Description</th><th>Reported By</th><th>Status</th><th>Action</th></tr></thead><tbody>
-              {disciplineCases.map(c => (<tr key={c._id}><td><strong>{c.studentName || 'Student'}</strong></td><td>{c.category}</td><td>{c.description?.substring(0, 60)}...</td><td>{c.reporterName || 'Teacher'}</td><td><span className={`status-badge ${c.status}`}>{c.status}</span></td>
-              <td>{c.status === 'pending' ? <button onClick={() => handleDisciplineAction(c)} className="review-btn">Review</button> : <span className="action-text">{c.action}</span>}</td></tr>))}
+              {disciplineCases.map(c => (<tr key={c._id}><td><strong>{c.studentName || 'Student'}</strong></td><td>{c.category}</td><td>{c.description?.substring(0, 60)}...</td><td>{c.reporterName || 'Teacher'}</td><td><span className={`status-badge ${c.status}`}>{c.status}</span></td><td>{c.status === 'pending' ? <button onClick={() => handleDisciplineAction(c)} className="review-btn">Review</button> : <span className="action-text">{c.action}</span>}</td></tr>))}
             </tbody></table></div>
           </div>
         )}
 
-       {/* Permissions Tab */}
-{activeTab === 'permissions' && (
-  <div className="data-card">
+        {/* Permissions Tab */}
+        {activeTab === 'permissions' && (
+          <div className="data-card">
+            <h2><i className="fas fa-file-alt"></i> Permission Requests</h2>
+            <div className="permission-stats"><div className="stat-chip approved">Approved: {permissionTrends.approved || 0}</div><div className="stat-chip pending">Pending: {permissionTrends.pending || 0}</div><div className="stat-chip rejected">Rejected: {permissionTrends.rejected || 0}</div></div>
+            <div className="table-responsive"><table className="data-table"><thead><tr><th>Requester</th><th>Type</th><th>Reason</th><th>Dates</th><th>Status</th><th>Actions</th></tr></thead><tbody>
+              {permissions.map(p => (<tr key={p._id}><td><strong>{p.requesterName}</strong><br/><small>{p.requesterRole}</small></td><td>{p.type}</td><td>{p.reason?.substring(0, 50)}...</td><td><small>{new Date(p.fromDate).toLocaleDateString()} to {new Date(p.toDate).toLocaleDateString()}</small></td><td><span className={`status-badge ${p.status}`}>{p.status}</span></td><td>{p.status === 'pending' ? (<div className="action-buttons"><button onClick={() => handlePermissionAction(p, 'approved')} className="approve-btn-sm">Approve</button><button onClick={() => handlePermissionAction(p, 'rejected')} className="reject-btn-sm">Reject</button></div>) : <span className="action-text">{p.action || p.status}</span>}</td></tr>))}
+            </tbody></table></div>
+          </div>
+        )}
 
-    <h2>
-      <i className="fas fa-file-alt"></i> Permission Requests
-    </h2>
-
-    <div className="permission-stats">
-      <div className="stat-chip approved">
-        Approved: {permissionTrends.approved || 0}
-      </div>
-
-      <div className="stat-chip pending">
-        Pending: {permissionTrends.pending || 0}
-      </div>
-
-      <div className="stat-chip rejected">
-        Rejected: {permissionTrends.rejected || 0}
-      </div>
-    </div>
-
-    <div className="table-responsive">
-      <table className="data-table">
-
-        <thead>
-          <tr>
-            <th>Requester</th>
-            <th>Type</th>
-            <th>Reason</th>
-            <th>Dates</th>
-            <th>Status</th>
-            <th>Actions</th>
-          </tr>
-        </thead>
-
-        <tbody>
-          {permissions.map((p) => (
-            <tr key={p._id}>
-
-              <td>
-                <strong>{p.requesterName}</strong>
-                <br />
-                <small>{p.requesterRole}</small>
-              </td>
-
-              <td>{p.type}</td>
-
-              <td>
-                {p.reason
-                  ? `${p.reason.substring(0, 50)}...`
-                  : '-'}
-              </td>
-
-              <td>
-                <small>
-                  {new Date(p.fromDate).toLocaleDateString()}
-                  <br />
-                  to
-                  <br />
-                  {new Date(p.toDate).toLocaleDateString()}
-                </small>
-              </td>
-
-              <td>
-                <span className={`status-badge ${p.status}`}>
-                  {p.status}
-                </span>
-              </td>
-
-              <td>
-                {p.status === 'pending' ? (
-                  <div className="action-buttons">
-
-                    <button
-                      onClick={() =>
-                        handlePermissionAction(p, 'approved')
-                      }
-                      className="approve-btn-sm"
-                    >
-                      Approve
-                    </button>
-
-                    <button
-                      onClick={() =>
-                        handlePermissionAction(p, 'rejected')
-                      }
-                      className="reject-btn-sm"
-                    >
-                      Reject
-                    </button>
-
-                  </div>
-                ) : (
-                  <span className="action-text">
-                    {p.action || p.status}
-                  </span>
-                )}
-              </td>
-
-            </tr>
-          ))}
-        </tbody>
-
-      </table>
-    </div>
-
-  </div>
-)}
-
-        {/* Messages Tab - In Sidebar Content */}
+        {/* Messages Tab */}
         {activeTab === 'messages' && (
           <div className="messages-container">
-            <div className="messages-header">
-              <div className="messages-tabs">
-                <button className={`msg-tab ${chatActiveTab === 'inbox' ? 'active' : ''}`} onClick={() => setChatActiveTab('inbox')}>
-                  <i className="fas fa-inbox"></i> Inbox {unreadCount > 0 && <span className="unread-count">{unreadCount}</span>}
-                </button>
-                <button className={`msg-tab ${chatActiveTab === 'new' ? 'active' : ''}`} onClick={() => handleNewMessage()}>
-                  <i className="fas fa-pen-alt"></i> New Message
-                </button>
-              </div>
-            </div>
-
+            <div className="messages-header"><div className="messages-tabs"><button className={`msg-tab ${chatActiveTab === 'inbox' ? 'active' : ''}`} onClick={() => setChatActiveTab('inbox')}><i className="fas fa-inbox"></i> Inbox {unreadCount > 0 && <span className="unread-count">{unreadCount}</span>}</button><button className={`msg-tab ${chatActiveTab === 'new' ? 'active' : ''}`} onClick={handleNewMessage}><i className="fas fa-pen-alt"></i> New Message</button></div></div>
             {chatActiveTab === 'inbox' ? (
               <div className="inbox-container">
-                <div className="conversations-list">
-                  <div className="search-conversations"><i className="fas fa-search"></i><input type="text" placeholder="Search conversations..." /></div>
-                  {users.map(user => (
-                    <div key={user._id} className={`conversation-item ${selectedConversation?.participant?._id === user._id ? 'active' : ''}`} onClick={() => handleSelectConversation(user)}>
-                      <div className="conv-avatar"><i className={`fas ${user.role === 'teacher' ? 'fa-chalkboard-user' : user.role === 'student' ? 'fa-user-graduate' : user.role === 'parent' ? 'fa-users' : 'fa-user'}`}></i></div>
-                      <div className="conv-info"><div className="conv-name">{user.fullName}</div><div className="conv-role">{user.role}</div></div>
-                    </div>
-                  ))}
+                <div className="conversations-list"><div className="search-conversations"><i className="fas fa-search"></i><input type="text" placeholder="Search conversations..." /></div>
+                  {users.map(user => (<div key={user._id} className={`conversation-item ${selectedConversation?.participant?._id === user._id ? 'active' : ''}`} onClick={() => handleSelectConversation(user)}><div className="conv-avatar"><i className={`fas ${user.role === 'teacher' ? 'fa-chalkboard-user' : user.role === 'student' ? 'fa-user-graduate' : user.role === 'parent' ? 'fa-users' : 'fa-user'}`}></i></div><div className="conv-info"><div className="conv-name">{user.fullName}</div><div className="conv-role">{user.role}</div></div></div>))}
                   {users.length === 0 && <p className="no-conversations">No conversations yet</p>}
                 </div>
                 <div className="messages-area">
@@ -817,18 +594,11 @@ const SuperAdminDashboard = () => {
                       <div className="messages-list">{messages.map(msg => (<div key={msg._id} className={`message-bubble ${msg.senderId === localStorage.getItem('userId') ? 'sent' : 'received'}`}><div className="message-text">{msg.content}</div><div className="message-time">{new Date(msg.createdAt).toLocaleTimeString()}</div></div>))}</div>
                       <div className="message-input-area"><textarea value={messageText} onChange={(e) => setMessageText(e.target.value)} placeholder="Type your message..." onKeyPress={(e) => e.key === 'Enter' && handleSendMessage()}></textarea><button onClick={handleSendMessage}><i className="fas fa-paper-plane"></i></button></div>
                     </>
-                  ) : <div className="no-conversation-selected"><i className="fas fa-comments"></i><h3>No conversation selected</h3><p>Select a user from the sidebar to start messaging</p></div>}
+                  ) : <div className="no-conversation-selected"><i className="fas fa-comments"></i><h3>No conversation selected</h3><p>Select a user to start messaging</p></div>}
                 </div>
               </div>
             ) : (
-              <div className="new-message-container">
-                <form onSubmit={handleSendNewMessage}>
-                  <div className="form-group"><label>Select Recipient</label><select id="newMessageReceiver" required><option value="">Select User</option>{users.map(user => (<option key={user._id} value={user._id}>{user.fullName} ({user.role})</option>))}</select></div>
-                  <div className="form-group"><label>Subject (Optional)</label><input type="text" id="newMessageSubject" placeholder="Subject" /></div>
-                  <div className="form-group"><label>Message</label><textarea id="newMessageContent" rows="8" placeholder="Type your message here..." required></textarea></div>
-                  <button type="submit" className="send-message-btn"><i className="fas fa-paper-plane"></i> Send Message</button>
-                </form>
-              </div>
+              <div className="new-message-container"><form onSubmit={handleSendNewMessage}><div className="form-group"><label>Select Recipient</label><select id="newMessageReceiver" required><option value="">Select User</option>{users.map(user => (<option key={user._id} value={user._id}>{user.fullName} ({user.role})</option>))}</select></div><div className="form-group"><label>Message</label><textarea id="newMessageContent" rows="8" placeholder="Type your message here..." required></textarea></div><button type="submit" className="send-message-btn"><i className="fas fa-paper-plane"></i> Send Message</button></form></div>
             )}
           </div>
         )}
@@ -836,10 +606,9 @@ const SuperAdminDashboard = () => {
         {/* Profile Tab */}
         {activeTab === 'profile' && (
           <div className="profile-card"><div className="profile-header"><div className="profile-avatar"><i className="fas fa-crown"></i></div><h2>{userName}</h2><p className="profile-role">Super Administrator</p></div>
-            <div className="profile-details"><div className="detail-item"><i className="fas fa-envelope"></i><div><label>Email Address</label><p>{localStorage.getItem('userEmail')}</p></div></div>
+            <div className="profile-details"><div className="detail-item"><i className="fas fa-envelope"></i><div><label>Email Address</label><p>{localStorage.getItem('userEmail') || 'admin@essa.rw'}</p></div></div>
             <div className="detail-item"><i className="fas fa-shield-alt"></i><div><label>Role</label><p>Super Administrator</p></div></div>
-            <div className="detail-item"><i className="fas fa-key"></i><div><label>Permissions</label><p>Full System Access</p></div></div>
-            <div className="detail-item"><i className="fas fa-clock"></i><div><label>Member Since</label><p>2024</p></div></div></div>
+            <div className="detail-item"><i className="fas fa-key"></i><div><label>Permissions</label><p>Full System Access</p></div></div></div>
           </div>
         )}
       </main>
@@ -890,7 +659,7 @@ const SuperAdminDashboard = () => {
         .stat-card:hover { transform: translateY(-3px); box-shadow: 0 10px 25px rgba(0,0,0,0.1); }
         .stat-icon { width: 55px; height: 55px; border-radius: 14px; display: flex; align-items: center; justify-content: center; }
         .stat-info h3 { font-size: 1.5rem; margin: 0; color: #1a3a5c; }
-        .stat-info p { margin: 5px 0 0; color: #666; }
+        .stat-info p { margin: 5px 0 0; color: #666; font-size: 0.85rem; }
         .stat-trend { font-size: 0.7rem; display: block; margin-top: 5px; }
         .stat-trend.positive { color: #27ae60; }
         .stat-trend.negative { color: #e74c3c; }
@@ -961,7 +730,7 @@ const SuperAdminDashboard = () => {
         /* Messages Tab Styles */
         .messages-container { background: white; border-radius: 16px; overflow: hidden; height: calc(100vh - 200px); min-height: 500px; display: flex; flex-direction: column; }
         .messages-header { padding: 15px 20px; border-bottom: 1px solid #e0e0e0; background: white; }
-        .messages-tabs { display: flex; gap: 10px; }
+        .messages-tabs { display: flex; gap: 10px; flex-wrap: wrap; }
         .msg-tab { padding: 8px 20px; background: #f0f2f5; border: none; border-radius: 30px; cursor: pointer; font-weight: 500; transition: all 0.3s; display: flex; align-items: center; gap: 8px; }
         .msg-tab.active { background: #1a3a5c; color: white; }
         .msg-tab .unread-count { background: #e74c3c; color: white; border-radius: 50%; padding: 2px 6px; font-size: 0.7rem; margin-left: 5px; }
@@ -1008,6 +777,8 @@ const SuperAdminDashboard = () => {
           .inbox-container { flex-direction: column; }
           .conversations-list { width: 100%; max-height: 200px; border-right: none; border-bottom: 1px solid #e0e0e0; }
           .message-bubble { max-width: 85%; }
+          .messages-tabs { width: 100%; justify-content: center; }
+          .sidebar { width: ${sidebarWidthMobile}; }
         }
       `}</style>
     </div>
