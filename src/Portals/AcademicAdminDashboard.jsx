@@ -24,26 +24,46 @@ const AcademicAdminDashboard = () => {
   const [announcements, setAnnouncements] = useState([]);
   
   // Chat states
-  const [isChatModalOpen, setIsChatModalOpen] = useState(false);
-  const [selectedChatUser, setSelectedChatUser] = useState(null);
   const [unreadCount, setUnreadCount] = useState(0);
-  const [socket, setSocket] = useState(null);
   const [users, setUsers] = useState([]);
   const [messages, setMessages] = useState([]);
   const [selectedUser, setSelectedUser] = useState(null);
   const [messageText, setMessageText] = useState('');
+  const [socket, setSocket] = useState(null);
   
   const navigate = useNavigate();
   const getToken = () => localStorage.getItem('portalToken');
 
+  // API Request function
   const apiRequest = async (endpoint, options = {}) => {
     const token = getToken();
-    const headers = { 'Content-Type': 'application/json', ...options.headers };
-    if (token) headers['Authorization'] = `Bearer ${token}`;
-    const response = await fetch(`${API_URL}${endpoint}`, { ...options, headers });
-    const data = await response.json();
-    if (!response.ok) throw new Error(data.message || 'Something went wrong');
-    return data;
+    const headers = {};
+    
+    if (token) {
+      headers['Authorization'] = `Bearer ${token}`;
+    }
+    
+    if (!(options.body instanceof FormData)) {
+      headers['Content-Type'] = 'application/json';
+    }
+    
+    try {
+      const response = await fetch(`${API_URL}${endpoint}`, {
+        ...options,
+        headers,
+      });
+      
+      const data = await response.json();
+      
+      if (!response.ok) {
+        throw new Error(data.message || 'Something went wrong');
+      }
+      
+      return data;
+    } catch (error) {
+      console.error('API Error:', error);
+      throw error;
+    }
   };
 
   useEffect(() => {
@@ -56,6 +76,7 @@ const AcademicAdminDashboard = () => {
     return () => window.removeEventListener('resize', checkMobile);
   }, []);
 
+  // Socket.IO for real-time chat
   useEffect(() => {
     const newSocket = io('http://localhost:5000');
     setSocket(newSocket);
@@ -72,13 +93,14 @@ const AcademicAdminDashboard = () => {
     const token = getToken();
     const role = localStorage.getItem('userRole');
     const name = localStorage.getItem('userName');
+    
     if (!token || role !== 'academic_admin') {
       navigate('/portal/login');
     } else {
       setUserName(name || 'Academic Admin');
       fetchAllData();
-      fetchUnreadCount();
       fetchUsers();
+      fetchUnreadCount();
     }
   }, [navigate]);
 
@@ -102,12 +124,12 @@ const AcademicAdminDashboard = () => {
       setAnnouncements(Array.isArray(annData) ? annData : []);
     } catch (error) {
       console.error('Error fetching data:', error);
-      Swal.fire('Error', 'Failed to load data', 'error');
     } finally {
       setLoading(false);
     }
   };
 
+  // Chat functions
   const fetchUsers = async () => {
     try {
       const data = await apiRequest('/messages/users').catch(() => []);
@@ -128,11 +150,16 @@ const AcademicAdminDashboard = () => {
 
   const fetchUnreadCount = async () => {
     try {
-      const data = await apiRequest('/messages/unread/count');
+      const data = await apiRequest('/messages/unread/count').catch(() => ({ count: 0 }));
       setUnreadCount(data.count || 0);
     } catch (error) {
       console.error('Error fetching unread count:', error);
     }
+  };
+
+  const handleSelectUser = (user) => {
+    setSelectedUser(user);
+    fetchMessages(user._id);
   };
 
   const handleSendMessage = async () => {
@@ -149,13 +176,9 @@ const AcademicAdminDashboard = () => {
         fetchUnreadCount();
       }
     } catch (error) {
+      console.error('Error sending message:', error);
       Swal.fire('Error', 'Failed to send message', 'error');
     }
-  };
-
-  const handleSelectUser = (user) => {
-    setSelectedUser(user);
-    fetchMessages(user._id);
   };
 
   // ==================== TEACHER MANAGEMENT ====================
@@ -341,6 +364,7 @@ const AcademicAdminDashboard = () => {
     }
   };
 
+  // ==================== ASSIGN TEACHER - FIXED ====================
   const handleAssignTeacher = async (classItem) => {
     if (teachers.length === 0) {
       Swal.fire({ title: 'No Teachers', text: 'Please create teachers first.', icon: 'warning' });
@@ -372,16 +396,27 @@ const AcademicAdminDashboard = () => {
     
     if (selectedTeacherId) {
       const teacherIdToAssign = selectedTeacherId === 'none' ? null : selectedTeacherId;
+      
       try {
         Swal.fire({ title: 'Assigning...', allowOutsideClick: false, showConfirmButton: false, willOpen: () => Swal.showLoading() });
-        const data = await apiRequest(`/academic-admin/classes/${classItem._id}/assign-teacher`, {
+        
+        const result = await apiRequest(`/academic-admin/classes/${classItem._id}/assign-teacher`, {
           method: 'PUT',
           body: JSON.stringify({ teacherId: teacherIdToAssign })
         });
+        
         Swal.close();
-        if (data.success) {
-          setClasses(prevClasses => prevClasses.map(c => c._id === data.class._id ? data.class : c));
-          Swal.fire({ title: 'Success!', text: teacherIdToAssign ? 'Teacher assigned successfully' : 'Teacher removed', icon: 'success', timer: 2000 });
+        
+        if (result.success) {
+          await fetchAllData();
+          Swal.fire({ 
+            title: 'Success!', 
+            text: teacherIdToAssign ? 'Teacher assigned successfully' : 'Teacher removed', 
+            icon: 'success', 
+            timer: 2000 
+          });
+        } else {
+          throw new Error(result.message || 'Failed to assign teacher');
         }
       } catch (error) {
         Swal.close();
@@ -404,35 +439,21 @@ const AcademicAdminDashboard = () => {
   };
 
   // ==================== NEWS MANAGEMENT ====================
- const handleCreateNews = async () => {
+  const handleCreateNews = async () => {
   const { value: formValues } = await Swal.fire({
     title: 'Create News/Event',
     html: `
       <div style="display: flex; flex-direction: column; gap: 12px;">
-        <div style="position: relative;">
-          <i class="fas fa-heading" style="position: absolute; left: 12px; top: 50%; transform: translateY(-50%); color: #999;"></i>
-          <input type="text" id="title" class="swal2-input" placeholder="Title" style="padding-left: 40px;" required>
-        </div>
-        <div style="position: relative;">
-          <i class="fas fa-align-left" style="position: absolute; left: 12px; top: 15px; color: #999;"></i>
-          <textarea id="summary" class="swal2-textarea" placeholder="Short Summary" rows="3" style="padding-left: 40px;" required></textarea>
-        </div>
-        <div style="position: relative;">
-          <i class="fas fa-file-alt" style="position: absolute; left: 12px; top: 15px; color: #999;"></i>
-          <textarea id="content" class="swal2-textarea" placeholder="Full Content" rows="4" style="padding-left: 40px;"></textarea>
-        </div>
-        <div style="position: relative;">
-          <i class="fas fa-image" style="position: absolute; left: 12px; top: 50%; transform: translateY(-50%); color: #999;"></i>
-          <input type="file" id="imageFile" class="swal2-file" accept="image/*" style="padding-left: 40px;">
-        </div>
-        <div style="position: relative;">
-          <i class="fas fa-tag" style="position: absolute; left: 12px; top: 50%; transform: translateY(-50%); color: #999;"></i>
-          <select id="category" class="swal2-select" style="padding-left: 40px; width: 100%;">
-            <option value="news">📰 News</option>
-            <option value="event">🎉 Event</option>
-            <option value="announcement">📢 Announcement</option>
-          </select>
-        </div>
+        <input type="text" id="title" class="swal2-input" placeholder="Title" required>
+        <textarea id="summary" class="swal2-textarea" placeholder="Short Summary" rows="3" required></textarea>
+        <textarea id="content" class="swal2-textarea" placeholder="Full Content" rows="4"></textarea>
+        <input type="file" id="imageFile" class="swal2-file" accept="image/*">
+        <select id="category" class="swal2-select">
+          <option value="news">📰 News</option>
+          <option value="event">🎉 Event</option>
+          <option value="announcement">📢 Announcement</option>
+        </select>
+        <input type="text" id="tags" class="swal2-input" placeholder="Tags (comma separated)">
       </div>
     `,
     confirmButtonText: 'Publish',
@@ -448,10 +469,12 @@ const AcademicAdminDashboard = () => {
         return false;
       }
       return {
-        title, summary,
+        title: title.trim(),
+        summary: summary.trim(),
         content: document.getElementById('content')?.value || summary,
         imageFile: imageFile,
-        category: document.getElementById('category')?.value
+        category: document.getElementById('category')?.value,
+        tags: document.getElementById('tags')?.value || ''
       };
     }
   });
@@ -463,6 +486,7 @@ const AcademicAdminDashboard = () => {
     formData.append('summary', formValues.summary);
     formData.append('content', formValues.content);
     formData.append('category', formValues.category);
+    if (formValues.tags) formData.append('tags', formValues.tags);
     if (formValues.imageFile) {
       formData.append('image', formValues.imageFile);
     }
@@ -473,9 +497,11 @@ const AcademicAdminDashboard = () => {
         headers: { 'Authorization': `Bearer ${token}` },
         body: formData
       });
+      
       const data = await response.json();
+      
       if (response.ok) {
-        Swal.fire('Published!', 'News/Event added successfully', 'success');
+        Swal.fire('Published!', 'News added successfully', 'success');
         fetchAllData();
         Swal.fire({
           title: 'View on Website',
@@ -489,7 +515,7 @@ const AcademicAdminDashboard = () => {
           }
         });
       } else {
-        throw new Error(data.message);
+        throw new Error(data.message || 'Failed to publish');
       }
     } catch (error) {
       Swal.fire('Error', error.message || 'Failed to publish news', 'error');
@@ -522,27 +548,15 @@ const AcademicAdminDashboard = () => {
     title: 'Add Gallery Image',
     html: `
       <div style="display: flex; flex-direction: column; gap: 12px;">
-        <div style="position: relative;">
-          <i class="fas fa-heading" style="position: absolute; left: 12px; top: 50%; transform: translateY(-50%); color: #999;"></i>
-          <input type="text" id="title" class="swal2-input" placeholder="Image Title" style="padding-left: 40px;" required>
-        </div>
-        <div style="position: relative;">
-          <i class="fas fa-image" style="position: absolute; left: 12px; top: 50%; transform: translateY(-50%); color: #999;"></i>
-          <input type="file" id="imageFile" class="swal2-file" accept="image/*" style="padding-left: 40px;" required>
-        </div>
-        <div style="position: relative;">
-          <i class="fas fa-tag" style="position: absolute; left: 12px; top: 50%; transform: translateY(-50%); color: #999;"></i>
-          <select id="category" class="swal2-select" style="padding-left: 40px; width: 100%;">
-            <option value="academic">📚 Academic</option>
-            <option value="sports">⚽ Sports</option>
-            <option value="cultural">🎭 Cultural</option>
-            <option value="events">🎪 Events</option>
-          </select>
-        </div>
-        <div style="position: relative;">
-          <i class="fas fa-align-left" style="position: absolute; left: 12px; top: 15px; color: #999;"></i>
-          <textarea id="description" class="swal2-textarea" placeholder="Description (optional)" rows="3" style="padding-left: 40px;"></textarea>
-        </div>
+        <input type="text" id="title" class="swal2-input" placeholder="Image Title" required>
+        <input type="file" id="imageFile" class="swal2-file" accept="image/*" required>
+        <select id="category" class="swal2-select">
+          <option value="academic">📚 Academic</option>
+          <option value="sports">⚽ Sports</option>
+          <option value="cultural">🎭 Cultural</option>
+          <option value="events">🎪 Events</option>
+        </select>
+        <textarea id="description" class="swal2-textarea" placeholder="Description (optional)" rows="3"></textarea>
       </div>
     `,
     confirmButtonText: 'Add Image',
@@ -557,10 +571,10 @@ const AcademicAdminDashboard = () => {
         return false;
       }
       return {
-        title,
-        imageFile,
+        title: title.trim(),
+        imageFile: imageFile,
         category: document.getElementById('category')?.value,
-        description: document.getElementById('description')?.value
+        description: document.getElementById('description')?.value || ''
       };
     }
   });
@@ -570,7 +584,7 @@ const AcademicAdminDashboard = () => {
     const formData = new FormData();
     formData.append('title', formValues.title);
     formData.append('category', formValues.category);
-    formData.append('description', formValues.description || '');
+    formData.append('description', formValues.description);
     formData.append('image', formValues.imageFile);
     
     try {
@@ -579,7 +593,9 @@ const AcademicAdminDashboard = () => {
         headers: { 'Authorization': `Bearer ${token}` },
         body: formData
       });
+      
       const data = await response.json();
+      
       if (response.ok) {
         Swal.fire('Added!', 'Image added to gallery', 'success');
         fetchAllData();
@@ -595,7 +611,7 @@ const AcademicAdminDashboard = () => {
           }
         });
       } else {
-        throw new Error(data.message);
+        throw new Error(data.message || 'Failed to add image');
       }
     } catch (error) {
       Swal.fire('Error', error.message || 'Failed to add image', 'error');
@@ -684,7 +700,6 @@ const AcademicAdminDashboard = () => {
               <button key={item.id} className={`nav-item ${activeTab === item.id ? 'active' : ''}`} onClick={() => { setActiveTab(item.id); if (isMobile) setMobileMenuOpen(false); }}>
                 <i className={item.icon} style={{ color: item.color }}></i>
                 {!sidebarCollapsed && <span>{item.label}</span>}
-                {item.id === 'messages' && unreadCount > 0 && !sidebarCollapsed && <span className="nav-badge">{unreadCount}</span>}
               </button>
             ))}
           </nav>
@@ -731,24 +746,94 @@ const AcademicAdminDashboard = () => {
             </div>
           </div>
         )}
+{/* Teachers Tab */}
+{activeTab === 'teachers' && (
+  <div className="data-card">
 
-        {/* Teachers Tab */}
-        {activeTab === 'teachers' && (
-          <div className="data-card">
-            <div className="card-header"><h2><i className="fas fa-chalkboard-user"></i> Teachers</h2><button onClick={handleCreateTeacher} className="btn-primary-sm"><i className="fas fa-plus"></i> Add Teacher</button></div>
-            <div className="table-responsive">
-              <table className="data-table">
-                <thead><tr><th>Teacher</th><th>Email</th><th>Subject</th><th>Phone</th><th>Actions</th></tr></thead>
-                <tbody>
-                  {teachers.map(t => <tr key={t._id}><td><strong>{t.fullName}</strong></td><td>{t.email}</td><td>{t.subject || '-'}</td><td>{t.phone || '-'}</td><td><button onClick={() => handleDeleteTeacher(t)} className="delete-btn-sm"><i className="fas fa-trash"></i></button></td></tr>)}
-                  {teachers.length === 0 && <tr><td colSpan="5" className="no-data">No teachers yet. Click "Add Teacher" to create one.</td></tr>}
-                </tbody>
-              </table>
-            </div>
-          </div>
-        )}
+    <div className="card-header">
 
-       {/* Classes Tab */}
+      <h2>
+        <i className="fas fa-chalkboard-user"></i>
+        {' '}Teachers
+      </h2>
+
+      <button
+        onClick={handleCreateTeacher}
+        className="btn-primary-sm"
+      >
+        <i className="fas fa-plus"></i>
+        {' '}Add Teacher
+      </button>
+
+    </div>
+
+    <div className="table-responsive">
+
+      <table className="data-table">
+
+        <thead>
+          <tr>
+            <th>Teacher</th>
+            <th>Email</th>
+            <th>Subject</th>
+            <th>Phone</th>
+            <th>Actions</th>
+          </tr>
+        </thead>
+
+        <tbody>
+
+          {teachers.map((t) => (
+            <tr key={t._id}>
+
+              <td>
+                <strong>{t.fullName}</strong>
+              </td>
+
+              <td>{t.email}</td>
+
+              <td>{t.subject || '-'}</td>
+
+              <td>{t.phone || '-'}</td>
+
+              <td>
+
+                <button
+                  onClick={() =>
+                    handleDeleteTeacher(t)
+                  }
+                  className="delete-btn-sm"
+                >
+                  <i className="fas fa-trash"></i>
+                </button>
+
+              </td>
+
+            </tr>
+          ))}
+
+          {teachers.length === 0 && (
+            <tr>
+              <td
+                colSpan="5"
+                className="no-data"
+              >
+                No teachers yet.
+                Click "Add Teacher"
+                to create one.
+              </td>
+            </tr>
+          )}
+
+        </tbody>
+
+      </table>
+
+    </div>
+
+  </div>
+)}
+      {/* Classes Tab - FIXED DISPLAY */}
 {activeTab === 'classes' && (
   <div className="data-card">
 
@@ -809,13 +894,17 @@ const AcademicAdminDashboard = () => {
               <td>{c.academicYear}</td>
 
               <td>
-                {c.teacherId &&
-                typeof c.teacherId === 'object' &&
-                c.teacherId.fullName ? (
+                {c.teacherId ? (
                   <span className="assigned-badge">
                     <i className="fas fa-chalkboard-user"></i>
                     {' '}
-                    {c.teacherId.fullName}
+                    {typeof c.teacherId === 'object'
+                      ? c.teacherId.fullName
+                      : teachers.find(
+                          (t) =>
+                            t._id === c.teacherId
+                        )?.fullName ||
+                        'Teacher assigned'}
                   </span>
                 ) : (
                   <span className="unassigned-badge">
@@ -889,6 +978,7 @@ const AcademicAdminDashboard = () => {
                     <div className="news-meta">
                       <span className={`category-badge ${item.category}`}><i className={`fas ${item.category === 'news' ? 'fa-newspaper' : item.category === 'event' ? 'fa-calendar' : 'fa-bullhorn'}`}></i> {item.category}</span>
                       <span><i className="fas fa-calendar"></i> {new Date(item.date).toLocaleDateString()}</span>
+                      {item.image && <span><i className="fas fa-image"></i> Has Image</span>}
                     </div>
                   </div>
                   <button onClick={() => handleDeleteNews(item)} className="delete-btn-sm"><i className="fas fa-trash"></i></button>
@@ -1184,7 +1274,6 @@ const AcademicAdminDashboard = () => {
         .nav-item i { width: 20px; }
         .nav-item:hover { background: rgba(255,255,255,0.1); color: #ffc107; }
         .nav-item.active { background: rgba(255,255,255,0.15); color: #ffc107; border-right: 3px solid #ffc107; }
-        .nav-badge { position: absolute; right: 20px; background: #e74c3c; color: white; border-radius: 50%; padding: 2px 6px; font-size: 0.7rem; min-width: 18px; text-align: center; }
         .sidebar-footer { padding: 1rem; border-top: 1px solid rgba(255,255,255,0.1); flex-shrink: 0; }
         .logout-btn { display: flex; align-items: center; gap: 12px; width: 100%; padding: 12px; background: #e74c3c; border: none; border-radius: 8px; color: white; cursor: pointer; }
         .logout-btn:hover { opacity: 0.9; transform: translateY(-2px); }

@@ -13,6 +13,9 @@ const jwt = require('jsonwebtoken');
 const http = require('http');
 const socketIo = require('socket.io');
 const nodemailer = require('nodemailer');
+const multer = require('multer');
+const path = require('path');
+const fs = require('fs');
 
 const app = express();
 const server = http.createServer(app);
@@ -22,15 +25,353 @@ const io = socketIo(server, {
 
 app.use(cors());
 app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
+
+// ==================== FILE UPLOAD CONFIGURATION ====================
+
+// Create upload directories if they don't exist
+const uploadDirs = ['./uploads', './uploads/news', './uploads/gallery', './uploads/profile'];
+uploadDirs.forEach(dir => {
+  if (!fs.existsSync(dir)) {
+    fs.mkdirSync(dir, { recursive: true });
+  }
+});
+
+// Configure storage for news images
+const newsStorage = multer.diskStorage({
+  destination: (req, file, cb) => {
+    cb(null, 'uploads/news/');
+  },
+  filename: (req, file, cb) => {
+    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
+    cb(null, 'news-' + uniqueSuffix + path.extname(file.originalname));
+  }
+});
+// ==================== SOCKET.IO WITH USER ROOMS ====================
+io.use(async (socket, next) => {
+  try {
+    const token = socket.handshake.auth.token;
+    if (!token) {
+      return next(new Error('Authentication error'));
+    }
+    
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    socket.userId = decoded.userId;
+    socket.userRole = decoded.role;
+    next();
+  } catch (err) {
+    next(new Error('Authentication error'));
+  }
+});
+
+io.on('connection', (socket) => {
+  console.log('🔌 User connected:', socket.userId);
+  
+  // Join user to their personal room
+  socket.join(socket.userId);
+  
+  // Handle typing indicators
+  socket.on('typing', ({ recipientId, isTyping }) => {
+    socket.to(recipientId).emit('user_typing', {
+      userId: socket.userId,
+      isTyping
+    });
+  });
+  
+  // Handle message read receipts
+  socket.on('mark_read', ({ messageId, senderId }) => {
+    socket.to(senderId).emit('message_read', { messageId });
+  });
+  
+  socket.on('disconnect', () => {
+    console.log('🔌 User disconnected:', socket.userId);
+  });
+}); 
+
+// Configure storage for gallery images
+const galleryStorage = multer.diskStorage({
+  destination: (req, file, cb) => {
+    cb(null, 'uploads/gallery/');
+  },
+  filename: (req, file, cb) => {
+    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
+    cb(null, 'gallery-' + uniqueSuffix + path.extname(file.originalname));
+  }
+});
+
+// Configure storage for profile pictures
+const profileStorage = multer.diskStorage({
+  destination: (req, file, cb) => {
+    cb(null, 'uploads/profile/');
+  },
+  filename: (req, file, cb) => {
+    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
+    cb(null, 'profile-' + uniqueSuffix + path.extname(file.originalname));
+  }
+});
+
+// File filter for images
+const imageFileFilter = (req, file, cb) => {
+  const allowedTypes = /jpeg|jpg|png|gif|webp/;
+  const extname = allowedTypes.test(path.extname(file.originalname).toLowerCase());
+  const mimetype = allowedTypes.test(file.mimetype);
+  
+  if (mimetype && extname) {
+    cb(null, true);
+  } else {
+    cb(new Error('Only image files are allowed'), false);
+  }
+};
+
+// Multer upload instances
+const uploadNews = multer({ 
+  storage: newsStorage, 
+  fileFilter: imageFileFilter, 
+  limits: { fileSize: 5 * 1024 * 1024 } // 5MB limit
+});
+
+const uploadGallery = multer({ 
+  storage: galleryStorage, 
+  fileFilter: imageFileFilter, 
+  limits: { fileSize: 5 * 1024 * 1024 } 
+});
+
+const uploadProfile = multer({ 
+  storage: profileStorage, 
+  fileFilter: imageFileFilter, 
+  limits: { fileSize: 2 * 1024 * 1024 } // 2MB limit for profile
+});
+
+// Serve static files from uploads directory
+app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
 // ==================== EMAIL CONFIGURATION ====================
+
+// Create email transporter
+// ==================== EMAIL CONFIGURATION ====================
+
+// Create email transporter for muekeshimanakevin20@gmail.com
 const emailTransporter = nodemailer.createTransport({
   service: 'gmail',
   auth: {
     user: process.env.EMAIL_USER || 'kevineniyomurinzi@gmail.com',
-    pass: process.env.EMAIL_PASS || 'your-app-password'
+    pass: process.env.EMAIL_PASS || 'your-16-character-app-password'
+  },
+  // Add these options for better reliability
+  tls: {
+    rejectUnauthorized: false
   }
 });
+
+// Verify email configuration on startup
+emailTransporter.verify((error, success) => {
+  if (error) {
+    console.error('❌ Email configuration error:', error);
+    console.log('📧 Gmail setup tips:');
+    console.log('1. Enable 2-Step Verification on your Google account');
+    console.log('2. Generate an App Password (not your regular password)');
+    console.log('3. Use the 16-character App Password in .env');
+  } else {
+    console.log('✅ Email configured successfully for:', process.env.EMAIL_USER);
+  }
+});
+// Email templates
+const sendWelcomeEmail = async (user) => {
+  const mailOptions = {
+    from: process.env.EMAIL_USER,
+    to: user.email,
+    subject: `Welcome to ESSA Nyarugunga Portal, ${user.fullName}!`,
+    html: `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <style>
+          body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
+          .container { max-width: 600px; margin: 0 auto; padding: 20px; }
+          .header { background: linear-gradient(135deg, #1a3a5c, #2c5f8a); color: white; padding: 30px; text-align: center; border-radius: 10px 10px 0 0; }
+          .content { background: #f5f5f5; padding: 30px; border-radius: 0 0 10px 10px; }
+          .credentials { background: white; padding: 15px; border-radius: 8px; margin: 15px 0; border-left: 4px solid #ffc107; }
+          .footer { text-align: center; padding: 20px; font-size: 12px; color: #777; }
+          .button { background: #1a3a5c; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px; display: inline-block; }
+        </style>
+      </head>
+      <body>
+        <div class="container">
+          <div class="header">
+            <h2>🎓 Welcome to ESSA Nyarugunga Portal</h2>
+            <p>École Secondaire des Sciences et Administrative</p>
+          </div>
+          <div class="content">
+            <h3>Dear ${user.fullName},</h3>
+            <p>Welcome to the ESSA Nyarugunga School Management Portal! Your account has been created successfully.</p>
+            
+            <div class="credentials">
+              <h4>📋 Your Account Details:</h4>
+              <p><strong>Email:</strong> ${user.email}</p>
+              <p><strong>Password:</strong> ${user.tempPassword || 'Use the password provided by your administrator'}</p>
+              <p><strong>Role:</strong> ${user.role.toUpperCase()}</p>
+            </div>
+            
+            <p>You can now log in to the portal to access:</p>
+            <ul>
+              <li>📚 Academic information and grades</li>
+              <li>📅 Attendance tracking</li>
+              <li>💰 Fee payment status</li>
+              <li>💬 Messaging system</li>
+              <li>📢 School announcements</li>
+            </ul>
+            
+            <div style="text-align: center; margin: 30px 0;">
+              <a href="http://localhost:5173/portal/login" class="button">🔐 Login to Portal</a>
+            </div>
+            
+            <p>If you have any questions, please contact the school administration.</p>
+            <p>Best regards,<br><strong>ESSA Nyarugunga Administration</strong></p>
+          </div>
+          <div class="footer">
+            <p>© ${new Date().getFullYear()} ESSA Nyarugunga School | Excellence in Education</p>
+            <p>Nyarugunga Sector, Kicukiro District, Kigali, Rwanda</p>
+          </div>
+        </div>
+      </body>
+      </html>
+    `
+  };
+  
+  await emailTransporter.sendMail(mailOptions);
+};
+
+const sendNewsNotificationEmail = async (news) => {
+  const subscribers = await Subscription.find({ isActive: true });
+  
+  for (const subscriber of subscribers) {
+    const mailOptions = {
+      from: process.env.EMAIL_USER,
+      to: subscriber.email,
+      subject: `📰 New: ${news.title} - ESSA Nyarugunga`,
+      html: `
+        <!DOCTYPE html>
+        <html>
+        <head>
+          <style>
+            body { font-family: Arial, sans-serif; line-height: 1.6; }
+            .container { max-width: 600px; margin: 0 auto; padding: 20px; }
+            .header { background: linear-gradient(135deg, #1a3a5c, #2c5f8a); color: white; padding: 20px; text-align: center; }
+            .content { padding: 20px; }
+            .news-image { max-width: 100%; border-radius: 8px; margin: 15px 0; }
+            .button { background: #1a3a5c; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px; display: inline-block; }
+          </style>
+        </head>
+        <body>
+          <div class="container">
+            <div class="header">
+              <h2>📢 New Update from ESSA Nyarugunga</h2>
+            </div>
+            <div class="content">
+              <h3>${news.title}</h3>
+              ${news.image ? `<img src="${news.image}" alt="${news.title}" class="news-image" />` : ''}
+              <p>${news.summary}</p>
+              <div style="text-align: center; margin: 20px 0;">
+                <a href="http://localhost:5173/news" class="button">📖 Read Full Article</a>
+              </div>
+            </div>
+            <div class="footer">
+              <p>You received this email because you subscribed to ESSA Nyarugunga newsletter.</p>
+              <p><a href="http://localhost:5173/unsubscribe?email=${subscriber.email}">Unsubscribe</a></p>
+            </div>
+          </div>
+        </body>
+        </html>
+      `
+    };
+    
+    await emailTransporter.sendMail(mailOptions);
+  }
+};
+
+const sendContactNotificationEmail = async (contact) => {
+  const mailOptions = {
+    from: process.env.EMAIL_USER,
+    to: 'admin@essa.rw',
+    subject: `📬 New Contact Message from ${contact.fullName}`,
+    html: `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <style>
+          body { font-family: Arial, sans-serif; }
+          .container { max-width: 600px; margin: 0 auto; padding: 20px; }
+          .header { background: #1a3a5c; color: white; padding: 15px; }
+          .content { padding: 20px; background: #f5f5f5; }
+          .info { margin: 10px 0; }
+        </style>
+      </head>
+      <body>
+        <div class="container">
+          <div class="header">
+            <h2>New Contact Form Submission</h2>
+          </div>
+          <div class="content">
+            <h3>Contact Details:</h3>
+            <div class="info"><strong>Name:</strong> ${contact.fullName}</div>
+            <div class="info"><strong>Email:</strong> ${contact.email}</div>
+            <div class="info"><strong>Phone:</strong> ${contact.phone || 'Not provided'}</div>
+            <div class="info"><strong>Subject:</strong> ${contact.subject || 'General Inquiry'}</div>
+            <div class="info"><strong>Message:</strong></div>
+            <p style="background: white; padding: 15px; border-radius: 5px;">${contact.message}</p>
+            <hr>
+            <p>Login to the admin dashboard to reply.</p>
+          </div>
+        </div>
+      </body>
+      </html>
+    `
+  };
+  
+  await emailTransporter.sendMail(mailOptions);
+};
+
+const sendAdmissionConfirmationEmail = async (application) => {
+  const mailOptions = {
+    from: process.env.EMAIL_USER,
+    to: application.email,
+    subject: `🎓 Admission Application Received - ESSA Nyarugunga`,
+    html: `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <style>
+          body { font-family: Arial, sans-serif; }
+          .container { max-width: 600px; margin: 0 auto; padding: 20px; }
+          .header { background: linear-gradient(135deg, #1a3a5c, #2c5f8a); color: white; padding: 20px; text-align: center; }
+          .content { padding: 20px; background: #f5f5f5; }
+        </style>
+      </head>
+      <body>
+        <div class="container">
+          <div class="header">
+            <h2>🎓 Application Received!</h2>
+          </div>
+          <div class="content">
+            <h3>Dear ${application.fullName},</h3>
+            <p>Thank you for applying to <strong>ESSA Nyarugunga School</strong>!</p>
+            <p>We have successfully received your admission application.</p>
+            <div style="background: white; padding: 15px; border-radius: 8px; margin: 15px 0;">
+              <p><strong>Application Number:</strong> ${application.applicationNumber}</p>
+              <p><strong>Submitted Date:</strong> ${new Date(application.createdAt).toLocaleString()}</p>
+              <p><strong>Status:</strong> Pending Review</p>
+            </div>
+            <p>Our admissions team will review your application and contact you within 3-5 business days.</p>
+            <p>For any questions, contact us at <strong>+250 788 123 456</strong></p>
+          </div>
+        </div>
+      </body>
+      </html>
+    `
+  };
+  
+  await emailTransporter.sendMail(mailOptions);
+};
 
 // ==================== MODELS ====================
 
@@ -41,6 +382,7 @@ const userSchema = new mongoose.Schema({
   password: String,
   role: String,
   phone: String,
+  profileImage: String, // Added profile image field
   isActive: { type: Boolean, default: true },
   createdBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
   createdAt: { type: Date, default: Date.now }
@@ -168,8 +510,8 @@ const announcementSchema = new mongoose.Schema({
 
 // News Schema
 const newsSchema = new mongoose.Schema({
-  title: { type: String, required: true },
-  summary: { type: String, required: true },
+  title: { type: String },
+  summary: { type: String },
   content: String,
   image: String,
   category: { type: String, default: 'news' },
@@ -181,7 +523,7 @@ const newsSchema = new mongoose.Schema({
   isPublished: { type: Boolean, default: true },
   createdAt: { type: Date, default: Date.now },
   updatedAt: { type: Date, default: Date.now }
-});
+}); 
 
 // Gallery Schema
 const gallerySchema = new mongoose.Schema({
@@ -196,18 +538,44 @@ const gallerySchema = new mongoose.Schema({
   isPublished: { type: Boolean, default: true }
 });
 
+// ==================== MESSAGING MODELS ====================
+
 // Message Schema
 const messageSchema = new mongoose.Schema({
-  senderId: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
-  senderName: String,
-  senderRole: String,
-  receiverId: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
-  receiverName: String,
-  receiverRole: String,
-  content: String,
+  senderId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
+  senderName: { type: String, required: true },
+  senderRole: { type: String, required: true },
+  recipientId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
+  recipientName: { type: String, required: true },
+  recipientRole: { type: String, required: true },
+  subject: { type: String, required: true },
+  content: { type: String, required: true },
   isRead: { type: Boolean, default: false },
+  readAt: { type: Date },
+  isArchived: { type: Boolean, default: false },
+  isDeleted: { type: Boolean, default: false },
+  attachments: [{ type: String }],
+  parentMessageId: { type: mongoose.Schema.Types.ObjectId, ref: 'Message' }, // For replies
   createdAt: { type: Date, default: Date.now }
 });
+
+// Conversation Schema to track message threads
+const conversationSchema = new mongoose.Schema({
+  participants: [{ 
+    userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+    name: String,
+    role: String,
+    lastReadAt: Date
+  }],
+  lastMessage: { type: String },
+  lastMessageAt: { type: Date, default: Date.now },
+  subject: { type: String },
+  messageCount: { type: Number, default: 0 },
+  isActive: { type: Boolean, default: true }
+});
+
+const Message = mongoose.model('Message', messageSchema);
+const Conversation = mongoose.model('Conversation', conversationSchema);
 
 // Admission Application Schema
 const admissionApplicationSchema = new mongoose.Schema({
@@ -460,6 +828,8 @@ mongoose.connect(MONGODB_URI, {
   server.listen(PORT, () => {
     console.log(`\n🚀 Server running on http://localhost:${PORT}`);
     console.log(`📍 Health: http://localhost:${PORT}/api/health`);
+    console.log(`📁 Uploads: http://localhost:${PORT}/uploads`);
+    console.log(`📧 Email: ${process.env.EMAIL_USER ? 'Configured' : 'Not configured'}`);
     console.log(`\n📋 Login Credentials:`);
     console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
     console.log('🔑 SUPER ADMIN (Head Master):');
@@ -474,10 +844,9 @@ mongoose.connect(MONGODB_URI, {
 });
 
 // ==================== AUTH ROUTES ====================
-// In server.js - make sure this is correct
 app.post('/api/auth/login', async (req, res) => {
   try {
-    const { email, password } = req.body; // Don't require role from frontend
+    const { email, password } = req.body;
     
     const user = await User.findOne({ email });
     if (!user) return res.status(401).json({ message: 'Invalid credentials' });
@@ -497,12 +866,31 @@ app.post('/api/auth/login', async (req, res) => {
       fullName: user.fullName,
       email: user.email,
       role: user.role,
+      profileImage: user.profileImage,
       token
     });
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
 });
+
+// ==================== PROFILE PICTURE UPLOAD ====================
+app.post('/api/user/upload-profile', authMiddleware, uploadProfile.single('profileImage'), async (req, res) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({ success: false, message: 'No file uploaded' });
+    }
+    
+    const imageUrl = `${req.protocol}://${req.get('host')}/uploads/profile/${req.file.filename}`;
+    
+    await User.findByIdAndUpdate(req.userId, { profileImage: imageUrl });
+    
+    res.json({ success: true, imageUrl });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
 // ==================== CONTACT ROUTES ====================
 app.post('/api/contact/submit', async (req, res) => {
   try {
@@ -512,22 +900,8 @@ app.post('/api/contact/submit', async (req, res) => {
     const contact = new Contact({ fullName, email, phone, subject, message });
     await contact.save();
     
-    // Send email to super admin
-    const mailOptions = {
-      from: process.env.EMAIL_USER,
-      to: 'admin@essa.rw',
-      subject: `📬 New Contact Message from ${fullName}`,
-      html: `
-        <h2>New Contact Form Submission</h2>
-        <p><strong>Name:</strong> ${fullName}</p>
-        <p><strong>Email:</strong> ${email}</p>
-        <p><strong>Phone:</strong> ${phone || 'Not provided'}</p>
-        <p><strong>Subject:</strong> ${subject || 'General Inquiry'}</p>
-        <p><strong>Message:</strong> ${message}</p>
-      `
-    };
-    
-    await emailTransporter.sendMail(mailOptions);
+    // Send email to admin with enhanced template
+    await sendContactNotificationEmail(contact);
     
     res.json({ success: true, message: 'Message sent successfully!' });
   } catch (error) {
@@ -553,12 +927,41 @@ app.post('/api/subscriptions/subscribe', async (req, res) => {
       if (!subscription.isActive) {
         subscription.isActive = true;
         await subscription.save();
-        return res.json({ success: true, message: 'Subscribed successfully!' });
+        return res.json({ success: true, message: 'Welcome back! You have been resubscribed.' });
       }
-      return res.json({ success: true, message: 'Already subscribed!' });
+      return res.json({ success: true, message: 'You are already subscribed!' });
     }
     
-    await Subscription.create({ email });
+    subscription = new Subscription({ email });
+    await subscription.save();
+    
+    // Send welcome email
+    const welcomeMailOptions = {
+      from: process.env.EMAIL_USER,
+      to: email,
+      subject: '📧 Welcome to ESSA Nyarugunga Newsletter!',
+      html: `
+        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+          <div style="background: linear-gradient(135deg, #1a3a5c, #2c5f8a); color: white; padding: 30px; text-align: center;">
+            <h2>Welcome to Our Newsletter! 📧</h2>
+          </div>
+          <div style="padding: 20px; background: #f5f5f5;">
+            <h3>Thank you for subscribing!</h3>
+            <p>You will now receive the latest news, events, and announcements from ESSA Nyarugunga School.</p>
+            <p>Stay tuned for updates about:</p>
+            <ul>
+              <li>📚 Academic achievements</li>
+              <li>🎉 School events and activities</li>
+              <li>📢 Important announcements</li>
+              <li>🏆 Student successes</li>
+            </ul>
+          </div>
+        </div>
+      `
+    };
+    
+    await emailTransporter.sendMail(welcomeMailOptions);
+    
     res.json({ success: true, message: 'Subscribed successfully!' });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });
@@ -566,6 +969,7 @@ app.post('/api/subscriptions/subscribe', async (req, res) => {
 });
 
 // ==================== NEWS ROUTES ====================
+// Public news endpoints
 app.get('/api/news/public', async (req, res) => {
   try {
     const { category, limit = 10 } = req.query;
@@ -591,18 +995,50 @@ app.get('/api/news/:id', async (req, res) => {
   }
 });
 
-// Admin news routes
+// Admin news routes with file upload
 app.get('/api/academic-admin/news', authMiddleware, async (req, res) => {
   if (req.userRole !== 'academic_admin' && req.userRole !== 'super_admin') return res.status(403).json({ message: 'Access denied' });
   const news = await News.find().sort({ date: -1 });
   res.json(news);
 });
 
-app.post('/api/academic-admin/news', authMiddleware, async (req, res) => {
-  if (req.userRole !== 'academic_admin' && req.userRole !== 'super_admin') return res.status(403).json({ message: 'Access denied' });
-  const news = new News({ ...req.body, author: req.userName });
-  await news.save();
-  res.json({ success: true, news });
+app.post('/api/academic-admin/news', authMiddleware, uploadNews.single('image'), async (req, res) => {
+  try {
+    const { title, summary, content, category, tags } = req.body;
+    const currentUser = await User.findById(req.userId);
+    
+    let imageUrl = null;
+    if (req.file) {
+      imageUrl = `${req.protocol}://${req.get('host')}/uploads/news/${req.file.filename}`;
+    }
+    
+    const news = new News({
+      title,
+      summary,
+      content: content || summary,
+      image: imageUrl || null,
+      category: category || 'news',
+      tags: tags ? tags.split(',') : [],
+      author: currentUser?.fullName || 'Academic Admin',
+      date: new Date(),
+      isPublished: true
+    });
+    
+    await news.save();
+    
+    // Send email notifications to subscribers
+    try {
+      await sendNewsNotificationEmail(news);
+      console.log('📧 Newsletter sent to subscribers');
+    } catch (emailError) {
+      console.error('Email error:', emailError);
+    }
+    
+    res.json({ success: true, news, imageUrl });
+  } catch (error) {
+    console.error('Create news error:', error);
+    res.status(500).json({ message: error.message });
+  }
 });
 
 app.delete('/api/academic-admin/news/:id', authMiddleware, async (req, res) => {
@@ -612,6 +1048,7 @@ app.delete('/api/academic-admin/news/:id', authMiddleware, async (req, res) => {
 });
 
 // ==================== GALLERY ROUTES ====================
+// Public gallery endpoints
 app.get('/api/gallery/public', async (req, res) => {
   try {
     const { category, limit = 20 } = req.query;
@@ -625,18 +1062,37 @@ app.get('/api/gallery/public', async (req, res) => {
   }
 });
 
-// Admin gallery routes
+// Admin gallery routes with file upload
 app.get('/api/academic-admin/gallery', authMiddleware, async (req, res) => {
   if (req.userRole !== 'academic_admin' && req.userRole !== 'super_admin') return res.status(403).json({ message: 'Access denied' });
   const gallery = await Gallery.find().sort({ date: -1 });
   res.json(gallery);
 });
 
-app.post('/api/academic-admin/gallery', authMiddleware, async (req, res) => {
-  if (req.userRole !== 'academic_admin' && req.userRole !== 'super_admin') return res.status(403).json({ message: 'Access denied' });
-  const gallery = new Gallery(req.body);
-  await gallery.save();
-  res.json({ success: true, gallery });
+app.post('/api/academic-admin/gallery', authMiddleware, uploadGallery.single('image'), async (req, res) => {
+  try {
+    const { title, category, description } = req.body;
+    
+    let imageUrl = null;
+    if (req.file) {
+      imageUrl = `${req.protocol}://${req.get('host')}/uploads/gallery/${req.file.filename}`;
+    }
+    
+    const galleryItem = new Gallery({
+      title,
+      image: imageUrl,
+      category: category || 'events',
+      description: description || '',
+      date: new Date(),
+      isPublished: true
+    });
+    
+    await galleryItem.save();
+    res.json({ success: true, gallery: galleryItem, imageUrl });
+  } catch (error) {
+    console.error('Create gallery error:', error);
+    res.status(500).json({ message: error.message });
+  }
 });
 
 app.delete('/api/academic-admin/gallery/:id', authMiddleware, async (req, res) => {
@@ -648,20 +1104,40 @@ app.delete('/api/academic-admin/gallery/:id', authMiddleware, async (req, res) =
 // ==================== ADMISSION ROUTES ====================
 app.post('/api/admissions/submit', async (req, res) => {
   try {
-    const application = new AdmissionApplication(req.body);
-    await application.save();
+    const applicationData = req.body;
     
-    // Send email to academic admin
-    const mailOptions = {
-      from: process.env.EMAIL_USER,
-      to: 'academic@essa.rw',
-      subject: `New Admission Application: ${application.fullName}`,
-      html: `<h2>New Application</h2><p>Name: ${application.fullName}</p><p>Level: ${application.level}</p><p>Email: ${application.email}</p>`
-    };
-    await emailTransporter.sendMail(mailOptions);
+    const newApplication = new AdmissionApplication({
+      fullName: applicationData.fullName,
+      dateOfBirth: new Date(applicationData.dateOfBirth),
+      nationality: applicationData.nationality || 'Rwandan',
+      nationalId: applicationData.nationalId || '',
+      email: applicationData.email,
+      phone: applicationData.phone,
+      address: applicationData.address,
+      level: applicationData.level,
+      previousSchool: applicationData.previousSchool,
+      lastAverage: parseFloat(applicationData.lastAverage),
+      achievements: applicationData.achievements || '',
+      parentName: applicationData.parentName,
+      parentPhone: applicationData.parentPhone,
+      parentEmail: applicationData.parentEmail || '',
+      parentOccupation: applicationData.parentOccupation || '',
+      applyScholarship: applicationData.applyScholarship || false,
+      status: 'pending'
+    });
     
-    res.json({ success: true, applicationNumber: application.applicationNumber });
+    await newApplication.save();
+    
+    // Send confirmation email to applicant
+    await sendAdmissionConfirmationEmail(newApplication);
+    
+    res.json({
+      success: true,
+      message: 'Application submitted successfully!',
+      applicationNumber: newApplication.applicationNumber
+    });
   } catch (error) {
+    console.error('Admission error:', error);
     res.status(500).json({ success: false, message: error.message });
   }
 });
@@ -736,19 +1212,52 @@ app.get('/api/academic-admin/teachers-list', authMiddleware, async (req, res) =>
 });
 
 app.post('/api/academic-admin/create-teacher-credentials', authMiddleware, async (req, res) => {
-  const { fullName, email, password, subject, phone } = req.body;
-  
-  const existing = await User.findOne({ email });
-  if (existing) return res.status(400).json({ message: 'Email exists' });
-  
-  const hashedPassword = await bcrypt.hash(password || 'teacher123', 10);
-  const teacherUser = new User({ fullName, email, password: hashedPassword, role: 'teacher', phone: phone || '', createdBy: req.userId });
-  await teacherUser.save();
-  
-  const teacherProfile = new TeacherProfile({ userId: teacherUser._id, fullName, email, subject: subject || 'General', phone: phone || '' });
-  await teacherProfile.save();
-  
-  res.json({ success: true, teacher: { _id: teacherProfile._id, fullName, email, subject, phone } });
+  try {
+    const { fullName, email, password, subject, phone } = req.body;
+    
+    const existing = await User.findOne({ email });
+    if (existing) return res.status(400).json({ message: 'Email already exists' });
+    
+    const finalPassword = password || 'teacher123';
+    const hashedPassword = await bcrypt.hash(finalPassword, 10);
+    
+    const teacherUser = new User({
+      fullName,
+      email,
+      password: hashedPassword,
+      role: 'teacher',
+      phone: phone || '',
+      createdBy: req.userId,
+      isActive: true
+    });
+    await teacherUser.save();
+    
+    const teacherProfile = new TeacherProfile({
+      userId: teacherUser._id,
+      fullName,
+      email,
+      subject: subject || 'General',
+      phone: phone || ''
+    });
+    await teacherProfile.save();
+    
+    // Send welcome email to teacher
+    try {
+      await sendWelcomeEmail({
+        fullName,
+        email,
+        role: 'teacher',
+        tempPassword: finalPassword
+      });
+      console.log(`📧 Welcome email sent to ${email}`);
+    } catch (emailError) {
+      console.error('Email error:', emailError);
+    }
+    
+    res.json({ success: true, teacher: teacherProfile, password: finalPassword });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
 });
 
 app.delete('/api/academic-admin/teachers/:id', authMiddleware, async (req, res) => {
@@ -760,116 +1269,354 @@ app.delete('/api/academic-admin/teachers/:id', authMiddleware, async (req, res) 
   res.json({ success: true });
 });
 
-// Teacher creates class
-app.post('/api/teacher/create-class', authMiddleware, async (req, res) => {
-  if (req.userRole !== 'teacher') return res.status(403).json({ message: 'Only teachers can create classes' });
-  const newClass = new Class({ ...req.body, teacherId: req.userId });
-  await newClass.save();
-  res.json({ success: true, class: newClass });
-});
-
-app.get('/api/teacher/classes', authMiddleware, async (req, res) => {
-  const classes = await Class.find({ teacherId: req.userId });
-  res.json(classes);
-});
-
-// Teacher adds student
-app.post('/api/teacher/add-student', authMiddleware, async (req, res) => {
-  if (req.userRole !== 'teacher') return res.status(403).json({ message: 'Unauthorized' });
-  
-  const { fullName, email, studentId, classId, parentName, parentPhone } = req.body;
-  const hashedPassword = await bcrypt.hash('student123', 10);
-  
-  const studentUser = new User({ fullName, email, password: hashedPassword, role: 'student', createdBy: req.userId });
-  await studentUser.save();
-  
-  const student = new Student({ userId: studentUser._id, studentId, fullName, email, classId, teacherId: req.userId, parentName, parentPhone });
-  await student.save();
-  
-  await Class.findByIdAndUpdate(classId, { $push: { students: student._id } });
-  
-  res.json({ success: true, student, password: 'student123' });
-});
-
-app.get('/api/teacher/students', authMiddleware, async (req, res) => {
-  const students = await Student.find({ teacherId: req.userId }).populate('classId');
-  res.json(students);
-});
-
-// Teacher creates assignment
-app.post('/api/teacher/assignments', authMiddleware, async (req, res) => {
-  if (req.userRole !== 'teacher') return res.status(403).json({ message: 'Unauthorized' });
-  const assignment = new Assignment({ ...req.body, teacherId: req.userId });
-  await assignment.save();
-  res.json({ success: true, assignment });
-});
-
-app.get('/api/teacher/assignments', authMiddleware, async (req, res) => {
-  const assignments = await Assignment.find({ teacherId: req.userId }).populate('classId');
-  res.json(assignments);
-});
-
-// Teacher marks attendance
-app.post('/api/teacher/attendance', authMiddleware, async (req, res) => {
-  const { classId, date, records } = req.body;
-  for (const record of records) {
-    await Attendance.findOneAndUpdate(
-      { studentId: record.studentId, date: new Date(date) },
-      { classId, status: record.status, teacherId: req.userId },
-      { upsert: true }
-    );
+// ==================== CLASSES ROUTES ====================
+app.get('/api/academic-admin/classes', authMiddleware, async (req, res) => {
+  try {
+    const classes = await Class.find().lean();
+    for (let cls of classes) {
+      if (cls.teacherId) {
+        const teacher = await TeacherProfile.findOne({ userId: cls.teacherId });
+        if (teacher) {
+          cls.teacherId = { _id: cls.teacherId, fullName: teacher.fullName };
+        }
+      }
+    }
+    res.json(classes);
+  } catch (error) {
+    res.json([]);
   }
-  res.json({ success: true });
 });
 
-app.get('/api/teacher/attendance', authMiddleware, async (req, res) => {
-  const attendance = await Attendance.find({ teacherId: req.userId }).populate('studentId');
-  res.json(attendance);
+app.post('/api/academic-admin/classes', authMiddleware, async (req, res) => {
+  try {
+    const { className, grade, academicYear, teacherId } = req.body;
+    
+    const newClass = new Class({
+      className,
+      grade,
+      academicYear,
+      teacherId: teacherId || null,
+      students: []
+    });
+    await newClass.save();
+    res.json({ success: true, class: newClass });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
 });
 
-// ==================== MESSAGE ROUTES ====================
-app.get('/api/messages/users', authMiddleware, async (req, res) => {
-  const users = await User.find({ _id: { $ne: req.userId }, isActive: true }).select('fullName email role');
-  res.json(users);
+app.put('/api/academic-admin/classes/:classId/assign-teacher', authMiddleware, async (req, res) => {
+  try {
+    const { teacherId } = req.body;
+    const classItem = await Class.findById(req.params.classId);
+    if (!classItem) {
+      return res.status(404).json({ message: 'Class not found' });
+    }
+    classItem.teacherId = teacherId;
+    await classItem.save();
+    res.json({ success: true, class: classItem });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
 });
 
-app.get('/api/messages/unread/count', authMiddleware, async (req, res) => {
-  const count = await Message.countDocuments({ receiverId: req.userId, isRead: false });
-  res.json({ count });
+app.delete('/api/academic-admin/classes/:id', authMiddleware, async (req, res) => {
+  try {
+    await Class.findByIdAndDelete(req.params.id);
+    res.json({ success: true });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
 });
 
-app.get('/api/messages/user/:userId', authMiddleware, async (req, res) => {
-  const messages = await Message.find({
-    $or: [
-      { senderId: req.userId, receiverId: req.params.userId },
-      { senderId: req.params.userId, receiverId: req.userId }
-    ]
-  }).sort({ createdAt: 1 });
-  
-  await Message.updateMany({ senderId: req.params.userId, receiverId: req.userId, isRead: false }, { $set: { isRead: true } });
-  res.json(messages);
+// ==================== PERFORMANCE ROUTES ====================
+app.get('/api/academic-admin/students-performance', authMiddleware, async (req, res) => {
+  try {
+    const students = await Student.find().populate('classId', 'grade className');
+    const performanceData = students.map(student => ({
+      studentId: student.studentId || `STU${student._id.toString().slice(-6)}`,
+      name: student.fullName,
+      class: student.classId ? `${student.classId.grade} ${student.classId.className}` : 'Not Assigned',
+      averageScore: Math.floor(Math.random() * 30) + 65
+    }));
+    res.json(performanceData);
+  } catch (error) {
+    res.json([]);
+  }
 });
 
+app.get('/api/academic-admin/class-performance', authMiddleware, async (req, res) => {
+  try {
+    const classes = await Class.find().populate('teacherId', 'fullName');
+    const performanceData = classes.map(cls => ({
+      className: `${cls.grade} ${cls.className}`,
+      teacher: cls.teacherId?.fullName || 'Not Assigned',
+      studentCount: cls.students?.length || 0,
+      averageScore: Math.floor(Math.random() * 25) + 70
+    }));
+    res.json(performanceData);
+  } catch (error) {
+    res.json([]);
+  }
+});
+
+// ==================== MESSAGING ROUTES ====================
+
+// Get all conversations for a user
+app.get('/api/messages/conversations', authMiddleware, async (req, res) => {
+  try {
+    const userId = req.userId;
+    
+    const conversations = await Conversation.aggregate([
+      {
+        $match: {
+          'participants.userId': mongoose.Types.ObjectId.createFromHexString(userId),
+          isActive: true
+        }
+      },
+      {
+        $lookup: {
+          from: 'messages',
+          localField: '_id',
+          foreignField: 'conversationId',
+          as: 'messages'
+        }
+      },
+      {
+        $addFields: {
+          unreadCount: {
+            $size: {
+              $filter: {
+                input: '$messages',
+                cond: {
+                  $and: [
+                    { $eq: ['$$this.isRead', false] },
+                    { $ne: ['$$this.senderId', mongoose.Types.ObjectId.createFromHexString(userId)] }
+                  ]
+                }
+              }
+            }
+          }
+        }
+      },
+      { $sort: { lastMessageAt: -1 } }
+    ]);
+    
+    res.json({ success: true, conversations });
+  } catch (error) {
+    console.error('Get conversations error:', error);
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
+// Get messages for a specific conversation
+app.get('/api/messages/conversation/:userId', authMiddleware, async (req, res) => {
+  try {
+    const currentUserId = req.userId;
+    const otherUserId = req.params.userId;
+    
+    const messages = await Message.find({
+      $or: [
+        { senderId: currentUserId, recipientId: otherUserId },
+        { senderId: otherUserId, recipientId: currentUserId }
+      ],
+      isDeleted: false
+    })
+    .sort({ createdAt: 1 })
+    .limit(100);
+    
+    // Mark messages as read
+    await Message.updateMany(
+      {
+        senderId: otherUserId,
+        recipientId: currentUserId,
+        isRead: false
+      },
+      {
+        isRead: true,
+        readAt: new Date()
+      }
+    );
+    
+    res.json({ success: true, messages });
+  } catch (error) {
+    console.error('Get messages error:', error);
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
+// Send a new message
 app.post('/api/messages/send', authMiddleware, async (req, res) => {
-  const { receiverId, content } = req.body;
-  const sender = await User.findById(req.userId);
-  const receiver = await User.findById(receiverId);
-  
-  const message = new Message({
-    senderId: req.userId,
-    senderName: sender?.fullName || 'Unknown',
-    senderRole: sender?.role || 'unknown',
-    receiverId,
-    receiverName: receiver?.fullName || 'Unknown',
-    receiverRole: receiver?.role || 'unknown',
-    content
-  });
-  await message.save();
-  
-  io.to(receiverId).emit('newMessage', message);
-  res.json({ success: true, message });
+  try {
+    const { recipientId, subject, content, parentMessageId } = req.body;
+    const senderId = req.userId;
+    
+    // Get sender info
+    const sender = await User.findById(senderId);
+    if (!sender) {
+      return res.status(404).json({ success: false, message: 'Sender not found' });
+    }
+    
+    // Get recipient info
+    const recipient = await User.findById(recipientId);
+    if (!recipient) {
+      return res.status(404).json({ success: false, message: 'Recipient not found' });
+    }
+    
+    const message = new Message({
+      senderId,
+      senderName: sender.fullName,
+      senderRole: sender.role,
+      recipientId,
+      recipientName: recipient.fullName,
+      recipientRole: recipient.role,
+      subject,
+      content,
+      parentMessageId: parentMessageId || null
+    });
+    
+    await message.save();
+    
+    // Update or create conversation
+    let conversation = await Conversation.findOne({
+      'participants.userId': { $all: [senderId, recipientId] },
+      isActive: true
+    });
+    
+    if (conversation) {
+      conversation.lastMessage = content.substring(0, 100);
+      conversation.lastMessageAt = new Date();
+      conversation.messageCount += 1;
+      await conversation.save();
+    } else {
+      conversation = new Conversation({
+        participants: [
+          { userId: senderId, name: sender.fullName, role: sender.role },
+          { userId: recipientId, name: recipient.fullName, role: recipient.role }
+        ],
+        lastMessage: content.substring(0, 100),
+        lastMessageAt: new Date(),
+        subject: subject,
+        messageCount: 1
+      });
+      await conversation.save();
+    }
+    
+    // Emit real-time event via Socket.io
+    io.to(recipientId.toString()).emit('new_message', {
+      message: {
+        _id: message._id,
+        senderName: sender.fullName,
+        senderRole: sender.role,
+        subject,
+        content,
+        createdAt: message.createdAt
+      },
+      conversationId: conversation._id
+    });
+    
+    res.json({ success: true, message, conversationId: conversation._id });
+  } catch (error) {
+    console.error('Send message error:', error);
+    res.status(500).json({ success: false, message: error.message });
+  }
 });
 
+// Delete/Archive a message
+app.delete('/api/messages/:messageId', authMiddleware, async (req, res) => {
+  try {
+    const messageId = req.params.messageId;
+    const userId = req.userId;
+    
+    const message = await Message.findById(messageId);
+    if (!message) {
+      return res.status(404).json({ success: false, message: 'Message not found' });
+    }
+    
+    // Only sender or recipient can delete
+    if (message.senderId.toString() !== userId && message.recipientId.toString() !== userId) {
+      return res.status(403).json({ success: false, message: 'Unauthorized' });
+    }
+    
+    message.isDeleted = true;
+    await message.save();
+    
+    res.json({ success: true, message: 'Message deleted successfully' });
+  } catch (error) {
+    console.error('Delete message error:', error);
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
+// Get unread message count
+app.get('/api/messages/unread-count', authMiddleware, async (req, res) => {
+  try {
+    const userId = req.userId;
+    
+    const count = await Message.countDocuments({
+      recipientId: userId,
+      isRead: false,
+      isDeleted: false
+    });
+    
+    res.json({ success: true, count });
+  } catch (error) {
+    console.error('Unread count error:', error);
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
+// Get all users for messaging (except current user)
+app.get('/api/messages/users', authMiddleware, async (req, res) => {
+  try {
+    const userId = req.userId;
+    
+    const users = await User.find(
+      { _id: { $ne: userId }, isActive: true },
+      'fullName email role profileImage'
+    ).sort('fullName');
+    
+    // Group users by role
+    const groupedUsers = {
+      admin: users.filter(u => u.role === 'admin'),
+      academic_admin: users.filter(u => u.role === 'academic_admin'),
+      teachers: users.filter(u => u.role === 'teacher'),
+      students: users.filter(u => u.role === 'student'),
+      parents: users.filter(u => u.role === 'parent')
+    };
+    
+    res.json({ success: true, users: groupedUsers });
+  } catch (error) {
+    console.error('Get users error:', error);
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
+// Mark message as read
+app.put('/api/messages/:messageId/read', authMiddleware, async (req, res) => {
+  try {
+    const messageId = req.params.messageId;
+    const userId = req.userId;
+    
+    const message = await Message.findById(messageId);
+    if (!message) {
+      return res.status(404).json({ success: false, message: 'Message not found' });
+    }
+    
+    if (message.recipientId.toString() !== userId) {
+      return res.status(403).json({ success: false, message: 'Unauthorized' });
+    }
+    
+    message.isRead = true;
+    message.readAt = new Date();
+    await message.save();
+    
+    res.json({ success: true, message: 'Message marked as read' });
+  } catch (error) {
+    console.error('Mark read error:', error);
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
 // ==================== HEALTH CHECK ====================
 app.get('/api/health', (req, res) => {
   res.json({ status: 'OK', timestamp: new Date().toISOString() });

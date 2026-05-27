@@ -1,66 +1,59 @@
-const mongoose = require('mongoose');
-const bcrypt = require('bcryptjs');
-const dotenv = require('dotenv');
+const nodemailer = require('nodemailer');
+require('dotenv').config();
 
-dotenv.config();
-
-const testLogin = async () => {
+const testEmail = async () => {
+  console.log('📧 Testing email configuration...');
+  console.log(`📤 From: ${process.env.EMAIL_USER}`);
+  
+  const transporter = nodemailer.createTransport({
+    service: 'gmail',
+    auth: {
+      user: process.env.EMAIL_USER,
+      pass: process.env.EMAIL_PASS
+    }
+  });
+  
   try {
-    await mongoose.connect(process.env.MONGODB_URI || 'mongodb://127.0.0.1:27017/essa_school');
-    console.log('Connected to MongoDB');
+    // Verify connection
+    await transporter.verify();
+    console.log('✅ Email transporter verified successfully!');
     
-    const db = mongoose.connection.db;
-    const users = await db.collection('users').find({}).toArray();
-    
-    console.log('\nUsers in database:');
-    users.forEach(user => {
-      console.log(`- ${user.email} (${user.role})`);
+    // Send test email to yourself
+    const info = await transporter.sendMail({
+      from: `"ESSA Nyarugunga School" <${process.env.EMAIL_USER}>`,
+      to: process.env.EMAIL_USER,
+      subject: '✅ Email Test - ESSA Nyarugunga System',
+      html: `
+        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
+          <div style="background: linear-gradient(135deg, #1a3a5c, #2c5f8a); color: white; padding: 30px; text-align: center; border-radius: 10px;">
+            <h2>📧 Email Configuration Successful!</h2>
+          </div>
+          <div style="padding: 20px; background: #f5f5f5;">
+            <p>Your ESSA Nyarugunga School Management System is now ready to send emails.</p>
+            <p><strong>Configured Email:</strong> ${process.env.EMAIL_USER}</p>
+            <p><strong>Test Time:</strong> ${new Date().toLocaleString()}</p>
+            <p>✓ Welcome emails to new teachers<br>
+            ✓ Newsletter to subscribers<br>
+            ✓ Contact form notifications<br>
+            ✓ Admission confirmations</p>
+          </div>
+        </div>
+      `
     });
     
-    // Test super admin login
-    const superAdmin = users.find(u => u.email === 'admin@essa.rw');
-    if (superAdmin) {
-      console.log('\n✅ Super Admin found!');
-      console.log('Email:', superAdmin.email);
-      console.log('Role:', superAdmin.role);
-      
-      // Test password
-      const testPassword = 'admin123';
-      const isMatch = await bcrypt.compare(testPassword, superAdmin.password);
-      console.log('Password "admin123" match:', isMatch);
-      
-      if (!isMatch) {
-        // Re-hash password
-        const newHash = await bcrypt.hash('admin123', 10);
-        await db.collection('users').updateOne(
-          { email: 'admin@essa.rw' },
-          { $set: { password: newHash } }
-        );
-        console.log('✅ Password has been re-hashed!');
-      }
-    } else {
-      console.log('\n❌ Super Admin NOT found!');
-      // Create super admin
-      const hashedPassword = await bcrypt.hash('admin123', 10);
-      await db.collection('users').insertOne({
-        fullName: 'Super Administrator',
-        email: 'admin@essa.rw',
-        password: hashedPassword,
-        role: 'super_admin',
-        phone: '+250788123456',
-        isActive: true,
-        createdAt: new Date()
-      });
-      console.log('✅ Super Admin created!');
-    }
+    console.log('✅ Test email sent successfully!');
+    console.log(`📨 Message ID: ${info.messageId}`);
+    console.log(`📬 Check your inbox at: ${process.env.EMAIL_USER}`);
     
-    await mongoose.disconnect();
-    console.log('\nTest complete!');
-    process.exit(0);
   } catch (error) {
-    console.error('Error:', error);
-    process.exit(1);
+    console.error('❌ Email test failed:', error.message);
+    console.log('\n🔧 Troubleshooting:');
+    console.log('1. Make sure 2-Step Verification is ENABLED');
+    console.log('2. Generate a NEW App Password (not your regular password)');
+    console.log('3. Copy the 16-character password exactly as shown');
+    console.log('4. Remove any spaces from the password');
+    console.log('5. Update .env file with the new password');
   }
 };
 
-testLogin();
+testEmail();

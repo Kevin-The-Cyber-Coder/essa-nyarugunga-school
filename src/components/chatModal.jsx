@@ -1,5 +1,5 @@
 // src/components/ChatModal.jsx
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import Swal from 'sweetalert2';
 
 const ChatModal = ({ isOpen, onClose, recipient, onMessageSent }) => {
@@ -12,10 +12,16 @@ const ChatModal = ({ isOpen, onClose, recipient, onMessageSent }) => {
   const [replyText, setReplyText] = useState('');
   const [activeTab, setActiveTab] = useState('new');
   const [searchTerm, setSearchTerm] = useState('');
+  const [onlineStatus, setOnlineStatus] = useState({});
+  const [isTyping, setIsTyping] = useState(false);
+  const [typingUser, setTypingUser] = useState(null);
   const messagesEndRef = useRef(null);
+  const typingTimeoutRef = useRef(null);
 
   const getToken = () => localStorage.getItem('portalToken');
+  const currentUserId = localStorage.getItem('userId');
 
+  // Fetch conversations when modal opens
   useEffect(() => {
     if (isOpen) {
       fetchConversations();
@@ -23,9 +29,22 @@ const ChatModal = ({ isOpen, onClose, recipient, onMessageSent }) => {
     }
   }, [isOpen, recipient]);
 
+  // Scroll to bottom when messages change
   useEffect(() => {
     scrollToBottom();
   }, [messages]);
+
+  // Simulate online status (you can replace with real WebSocket later)
+  useEffect(() => {
+    const interval = setInterval(() => {
+      const status = {};
+      conversations.forEach(conv => {
+        status[conv.participant.id] = Math.random() > 0.3;
+      });
+      setOnlineStatus(status);
+    }, 5000);
+    return () => clearInterval(interval);
+  }, [conversations]);
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -40,6 +59,14 @@ const ChatModal = ({ isOpen, onClose, recipient, onMessageSent }) => {
       if (response.ok) {
         const data = await response.json();
         setConversations(data);
+        
+        // Update unread counts
+        const unreadMap = {};
+        data.forEach(conv => {
+          if (conv.unreadCount > 0) {
+            unreadMap[conv.participant.id] = conv.unreadCount;
+          }
+        });
       }
     } catch (error) {
       console.error('Error fetching conversations:', error);
@@ -64,6 +91,21 @@ const ChatModal = ({ isOpen, onClose, recipient, onMessageSent }) => {
   const handleSelectConversation = (conversation) => {
     setSelectedConversation(conversation);
     fetchMessages(conversation.participant.id);
+    // Mark as read
+    markConversationAsRead(conversation.participant.id);
+  };
+
+  const markConversationAsRead = async (otherUserId) => {
+    const token = getToken();
+    try {
+      await fetch(`http://localhost:5000/api/messages/mark-read/${otherUserId}`, {
+        method: 'PUT',
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      fetchConversations(); // Refresh conversations to update unread count
+    } catch (error) {
+      console.error('Error marking as read:', error);
+    }
   };
 
   const handleSendNewMessage = async (e) => {
@@ -139,19 +181,38 @@ const ChatModal = ({ isOpen, onClose, recipient, onMessageSent }) => {
           receiverId: selectedConversation.participant.id,
           receiverName: selectedConversation.participant.name,
           receiverRole: selectedConversation.participant.role,
-          subject: `Re: ${messages[0]?.subject || 'Message'}`,
+          subject: messages[0]?.subject ? `Re: ${messages[0].subject}` : 'Reply',
           content: replyText
         })
       });
 
       if (response.ok) {
         setReplyText('');
-        fetchMessages(selectedConversation.participant.id);
-        fetchConversations();
+        await fetchMessages(selectedConversation.participant.id);
+        await fetchConversations();
+        setTimeout(scrollToBottom, 100);
       }
     } catch (error) {
       console.error('Error sending reply:', error);
+      Swal.fire({
+        title: 'Error',
+        text: 'Failed to send message. Please try again.',
+        icon: 'error',
+        confirmButtonColor: '#1a3a5c'
+      });
     }
+  };
+
+  const handleTyping = () => {
+    if (!typingTimeoutRef.current) {
+      // Emit typing event (you can implement WebSocket here)
+      console.log('User is typing...');
+    }
+    
+    clearTimeout(typingTimeoutRef.current);
+    typingTimeoutRef.current = setTimeout(() => {
+      console.log('User stopped typing');
+    }, 1000);
   };
 
   const formatDate = (dateString) => {
@@ -163,10 +224,15 @@ const ChatModal = ({ isOpen, onClose, recipient, onMessageSent }) => {
     const diffDays = Math.floor(diffMs / 86400000);
 
     if (diffMins < 1) return 'Just now';
-    if (diffMins < 60) return `${diffMins} min ago`;
-    if (diffHours < 24) return `${diffHours} hour${diffHours > 1 ? 's' : ''} ago`;
-    if (diffDays < 7) return `${diffDays} day${diffDays > 1 ? 's' : ''} ago`;
+    if (diffMins < 60) return `${diffMins}m ago`;
+    if (diffHours < 24) return `${diffHours}h ago`;
+    if (diffDays < 7) return `${diffDays}d ago`;
     return date.toLocaleDateString();
+  };
+
+  const formatTime = (dateString) => {
+    const date = new Date(dateString);
+    return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
   };
 
   const filteredConversations = conversations.filter(conv =>
@@ -186,7 +252,7 @@ const ChatModal = ({ isOpen, onClose, recipient, onMessageSent }) => {
             </div>
             <div className="header-info">
               <h3>Messages</h3>
-              <p>Chat with school community members</p>
+              <p>Chat with school community</p>
             </div>
           </div>
           <button className="close-btn" onClick={onClose}>
@@ -205,12 +271,15 @@ const ChatModal = ({ isOpen, onClose, recipient, onMessageSent }) => {
           </button>
           <button 
             className={`tab-btn ${activeTab === 'inbox' ? 'active' : ''}`}
-            onClick={() => setActiveTab('inbox')}
+            onClick={() => {
+              setActiveTab('inbox');
+              fetchConversations();
+            }}
           >
             <i className="fas fa-inbox"></i>
             <span>Inbox</span>
-            {conversations.length > 0 && (
-              <span className="badge">{conversations.length}</span>
+            {conversations.filter(c => c.unreadCount > 0).length > 0 && (
+              <span className="badge">{conversations.filter(c => c.unreadCount > 0).length}</span>
             )}
           </button>
         </div>
@@ -302,14 +371,17 @@ const ChatModal = ({ isOpen, onClose, recipient, onMessageSent }) => {
                       >
                         <div className="conversation-avatar">
                           <i className={`fas ${conv.participant.role === 'teacher' ? 'fa-chalkboard-user' : conv.participant.role === 'student' ? 'fa-user-graduate' : 'fa-user'}`}></i>
-                          {conv.unreadCount > 0 && <span className="unread-dot"></span>}
+                          {onlineStatus[conv.participant.id] && <span className="online-indicator"></span>}
                         </div>
                         <div className="conversation-info">
                           <div className="conv-header">
                             <strong>{conv.participant.name}</strong>
                             <span className="conv-time">{formatDate(conv.lastMessage.createdAt)}</span>
                           </div>
-                          <div className="conv-preview">{conv.lastMessage.content?.substring(0, 40)}...</div>
+                          <div className="conv-preview">
+                            {conv.lastMessage.content?.substring(0, 50)}
+                            {conv.lastMessage.content?.length > 50 ? '...' : ''}
+                          </div>
                           <div className="conv-meta">
                             <span className="conv-role">{conv.participant.role}</span>
                             {conv.unreadCount > 0 && (
@@ -337,6 +409,7 @@ const ChatModal = ({ isOpen, onClose, recipient, onMessageSent }) => {
                       <div className="messages-header-info">
                         <div className="header-avatar">
                           <i className={`fas ${selectedConversation.participant.role === 'teacher' ? 'fa-chalkboard-user' : selectedConversation.participant.role === 'student' ? 'fa-user-graduate' : 'fa-user'}`}></i>
+                          {onlineStatus[selectedConversation.participant.id] && <span className="online-indicator-header"></span>}
                         </div>
                         <div className="header-details">
                           <h4>{selectedConversation.participant.name}</h4>
@@ -346,28 +419,58 @@ const ChatModal = ({ isOpen, onClose, recipient, onMessageSent }) => {
                     </div>
 
                     <div className="messages-list">
-                      {messages.map(msg => {
-                        const isOwn = msg.senderId === localStorage.getItem('userId');
-                        return (
-                          <div key={msg._id} className={`message-item ${isOwn ? 'own' : 'other'}`}>
-                            <div className="message-bubble">
-                              <div className="message-sender">
-                                <strong>{msg.senderName}</strong>
-                                <span className="message-time">{formatDate(msg.createdAt)}</span>
+                      {messages.length > 0 ? (
+                        messages.map((msg, index) => {
+                          const isOwn = msg.senderId === currentUserId;
+                          const showDate = index === 0 || new Date(msg.createdAt).toDateString() !== new Date(messages[index - 1]?.createdAt).toDateString();
+                          
+                          return (
+                            <React.Fragment key={msg._id}>
+                              {showDate && (
+                                <div className="date-divider">
+                                  <span>{new Date(msg.createdAt).toLocaleDateString(undefined, { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}</span>
+                                </div>
+                              )}
+                              <div className={`message-item ${isOwn ? 'own' : 'other'}`}>
+                                <div className="message-bubble">
+                                  <div className="message-sender">
+                                    <strong>{msg.senderName}</strong>
+                                    <span className="message-time">{formatTime(msg.createdAt)}</span>
+                                  </div>
+                                  {msg.subject && msg.subject !== 'Reply' && (
+                                    <div className="message-subject">{msg.subject}</div>
+                                  )}
+                                  <div className="message-content">{msg.content}</div>
+                                </div>
                               </div>
-                              <div className="message-subject">{msg.subject}</div>
-                              <div className="message-content">{msg.content}</div>
-                            </div>
-                          </div>
-                        );
-                      })}
+                            </React.Fragment>
+                          );
+                        })
+                      ) : (
+                        <div className="empty-messages-state">
+                          <i className="fas fa-comment-dots"></i>
+                          <p>No messages yet</p>
+                          <span>Send a message to start the conversation</span>
+                        </div>
+                      )}
+                      {typingUser === selectedConversation.participant.id && (
+                        <div className="typing-indicator">
+                          <span></span>
+                          <span></span>
+                          <span></span>
+                          <span className="typing-text">Typing...</span>
+                        </div>
+                      )}
                       <div ref={messagesEndRef} />
                     </div>
 
                     <div className="message-reply">
                       <textarea
                         value={replyText}
-                        onChange={(e) => setReplyText(e.target.value)}
+                        onChange={(e) => {
+                          setReplyText(e.target.value);
+                          handleTyping();
+                        }}
                         placeholder="Type your reply..."
                         rows="2"
                         onKeyPress={(e) => {
@@ -386,7 +489,7 @@ const ChatModal = ({ isOpen, onClose, recipient, onMessageSent }) => {
                   <div className="empty-messages">
                     <i className="fas fa-comments"></i>
                     <h3>No conversation selected</h3>
-                    <p>Select a conversation from the left sidebar to start messaging</p>
+                    <p>Select a conversation from the sidebar to start messaging</p>
                   </div>
                 )}
               </div>
@@ -396,6 +499,12 @@ const ChatModal = ({ isOpen, onClose, recipient, onMessageSent }) => {
       </div>
 
       <style>{`
+        * {
+          margin: 0;
+          padding: 0;
+          box-sizing: border-box;
+        }
+
         /* Overlay */
         .chat-modal-overlay {
           position: fixed;
@@ -420,9 +529,9 @@ const ChatModal = ({ isOpen, onClose, recipient, onMessageSent }) => {
         /* Modal Container */
         .chat-modal-container {
           width: 90%;
-          max-width: 1000px;
+          max-width: 1100px;
           height: 85vh;
-          max-height: 700px;
+          max-height: 750px;
           background: white;
           border-radius: 24px;
           overflow: hidden;
@@ -552,19 +661,20 @@ const ChatModal = ({ isOpen, onClose, recipient, onMessageSent }) => {
         .new-message-form {
           height: 100%;
           overflow-y: auto;
-          padding: 20px;
+          padding: 24px;
+          background: #f8f9fa;
         }
 
         .form-group {
-          margin-bottom: 20px;
+          margin-bottom: 24px;
         }
 
         .form-group label {
           display: flex;
           align-items: center;
           gap: 8px;
-          margin-bottom: 8px;
-          font-weight: 500;
+          margin-bottom: 10px;
+          font-weight: 600;
           font-size: 0.85rem;
           color: #333;
         }
@@ -578,8 +688,8 @@ const ChatModal = ({ isOpen, onClose, recipient, onMessageSent }) => {
           display: flex;
           align-items: center;
           gap: 12px;
-          padding: 12px;
-          background: #f8f9fa;
+          padding: 12px 16px;
+          background: white;
           border-radius: 12px;
           border: 1px solid #e0e0e0;
         }
@@ -587,7 +697,7 @@ const ChatModal = ({ isOpen, onClose, recipient, onMessageSent }) => {
         .recipient-avatar {
           width: 45px;
           height: 45px;
-          background: #1a3a5c;
+          background: linear-gradient(135deg, #1a3a5c, #2c5f8a);
           border-radius: 50%;
           display: flex;
           align-items: center;
@@ -612,12 +722,13 @@ const ChatModal = ({ isOpen, onClose, recipient, onMessageSent }) => {
         .form-group input,
         .form-group textarea {
           width: 100%;
-          padding: 12px 14px;
+          padding: 12px 16px;
           border: 1px solid #e0e0e0;
           border-radius: 12px;
           font-size: 0.9rem;
           transition: all 0.3s;
           font-family: inherit;
+          background: white;
         }
 
         .form-group input:focus,
@@ -662,7 +773,7 @@ const ChatModal = ({ isOpen, onClose, recipient, onMessageSent }) => {
 
         /* Conversations Sidebar */
         .conversations-sidebar {
-          width: 35%;
+          width: 320px;
           border-right: 1px solid #e0e0e0;
           display: flex;
           flex-direction: column;
@@ -670,14 +781,15 @@ const ChatModal = ({ isOpen, onClose, recipient, onMessageSent }) => {
         }
 
         .search-conversations {
-          padding: 15px;
+          padding: 16px;
           position: relative;
           border-bottom: 1px solid #e0e0e0;
+          background: white;
         }
 
         .search-conversations i {
           position: absolute;
-          left: 25px;
+          left: 28px;
           top: 50%;
           transform: translateY(-50%);
           color: #999;
@@ -685,10 +797,10 @@ const ChatModal = ({ isOpen, onClose, recipient, onMessageSent }) => {
 
         .search-conversations input {
           width: 100%;
-          padding: 10px 10px 10px 35px;
+          padding: 10px 10px 10px 38px;
           border: 1px solid #e0e0e0;
           border-radius: 10px;
-          background: white;
+          background: #f8f9fa;
           font-size: 0.85rem;
         }
 
@@ -700,14 +812,15 @@ const ChatModal = ({ isOpen, onClose, recipient, onMessageSent }) => {
         .conversation-item {
           display: flex;
           gap: 12px;
-          padding: 14px;
+          padding: 16px;
           cursor: pointer;
           transition: background 0.2s;
           border-bottom: 1px solid #e0e0e0;
+          background: white;
         }
 
         .conversation-item:hover {
-          background: #e8f0fe;
+          background: #f0f7ff;
         }
 
         .conversation-item.active {
@@ -717,9 +830,9 @@ const ChatModal = ({ isOpen, onClose, recipient, onMessageSent }) => {
 
         .conversation-avatar {
           position: relative;
-          width: 48px;
-          height: 48px;
-          background: #1a3a5c;
+          width: 50px;
+          height: 50px;
+          background: linear-gradient(135deg, #1a3a5c, #2c5f8a);
           border-radius: 50%;
           display: flex;
           align-items: center;
@@ -732,13 +845,13 @@ const ChatModal = ({ isOpen, onClose, recipient, onMessageSent }) => {
           color: white;
         }
 
-        .unread-dot {
+        .online-indicator {
           position: absolute;
           bottom: 2px;
           right: 2px;
-          width: 10px;
-          height: 10px;
-          background: #e74c3c;
+          width: 12px;
+          height: 12px;
+          background: #27ae60;
           border-radius: 50%;
           border: 2px solid white;
         }
@@ -752,11 +865,11 @@ const ChatModal = ({ isOpen, onClose, recipient, onMessageSent }) => {
           display: flex;
           justify-content: space-between;
           align-items: baseline;
-          margin-bottom: 4px;
+          margin-bottom: 6px;
         }
 
         .conv-header strong {
-          font-size: 0.85rem;
+          font-size: 0.9rem;
           white-space: nowrap;
           overflow: hidden;
           text-overflow: ellipsis;
@@ -773,7 +886,7 @@ const ChatModal = ({ isOpen, onClose, recipient, onMessageSent }) => {
           white-space: nowrap;
           overflow: hidden;
           text-overflow: ellipsis;
-          margin-bottom: 4px;
+          margin-bottom: 6px;
         }
 
         .conv-meta {
@@ -785,7 +898,7 @@ const ChatModal = ({ isOpen, onClose, recipient, onMessageSent }) => {
         .conv-role {
           font-size: 0.65rem;
           background: #e0e0e0;
-          padding: 2px 6px;
+          padding: 2px 8px;
           border-radius: 4px;
           color: #666;
         }
@@ -793,9 +906,9 @@ const ChatModal = ({ isOpen, onClose, recipient, onMessageSent }) => {
         .unread-count {
           background: #e74c3c;
           color: white;
-          padding: 2px 6px;
-          border-radius: 10px;
-          font-size: 0.6rem;
+          padding: 2px 7px;
+          border-radius: 12px;
+          font-size: 0.65rem;
           font-weight: bold;
         }
 
@@ -808,7 +921,7 @@ const ChatModal = ({ isOpen, onClose, recipient, onMessageSent }) => {
         }
 
         .messages-header {
-          padding: 15px;
+          padding: 16px 20px;
           border-bottom: 1px solid #e0e0e0;
           background: white;
         }
@@ -820,9 +933,10 @@ const ChatModal = ({ isOpen, onClose, recipient, onMessageSent }) => {
         }
 
         .header-avatar {
-          width: 45px;
-          height: 45px;
-          background: #1a3a5c;
+          position: relative;
+          width: 50px;
+          height: 50px;
+          background: linear-gradient(135deg, #1a3a5c, #2c5f8a);
           border-radius: 50%;
           display: flex;
           align-items: center;
@@ -832,6 +946,17 @@ const ChatModal = ({ isOpen, onClose, recipient, onMessageSent }) => {
         .header-avatar i {
           font-size: 1.2rem;
           color: white;
+        }
+
+        .online-indicator-header {
+          position: absolute;
+          bottom: 2px;
+          right: 2px;
+          width: 12px;
+          height: 12px;
+          background: #27ae60;
+          border-radius: 50%;
+          border: 2px solid white;
         }
 
         .header-details h4 {
@@ -850,8 +975,21 @@ const ChatModal = ({ isOpen, onClose, recipient, onMessageSent }) => {
           padding: 20px;
           display: flex;
           flex-direction: column;
-          gap: 15px;
+          gap: 16px;
           background: #f8f9fa;
+        }
+
+        .date-divider {
+          text-align: center;
+          margin: 10px 0;
+        }
+
+        .date-divider span {
+          font-size: 0.7rem;
+          color: #999;
+          background: #e0e0e0;
+          padding: 4px 12px;
+          border-radius: 20px;
         }
 
         .message-item {
@@ -868,7 +1006,7 @@ const ChatModal = ({ isOpen, onClose, recipient, onMessageSent }) => {
 
         .message-bubble {
           max-width: 70%;
-          padding: 12px 16px;
+          padding: 10px 16px;
           border-radius: 18px;
         }
 
@@ -882,7 +1020,7 @@ const ChatModal = ({ isOpen, onClose, recipient, onMessageSent }) => {
           background: white;
           color: #333;
           border-bottom-left-radius: 4px;
-          box-shadow: 0 2px 5px rgba(0,0,0,0.05);
+          box-shadow: 0 2px 5px rgba(0, 0, 0, 0.05);
         }
 
         .message-sender {
@@ -899,12 +1037,13 @@ const ChatModal = ({ isOpen, onClose, recipient, onMessageSent }) => {
         .message-time {
           font-size: 0.6rem;
           opacity: 0.7;
+          margin-left: 10px;
         }
 
         .message-subject {
           font-weight: 600;
           font-size: 0.85rem;
-          margin-bottom: 5px;
+          margin-bottom: 6px;
         }
 
         .message-content {
@@ -913,19 +1052,63 @@ const ChatModal = ({ isOpen, onClose, recipient, onMessageSent }) => {
           word-wrap: break-word;
         }
 
+        .typing-indicator {
+          display: flex;
+          align-items: center;
+          gap: 4px;
+          padding: 8px 12px;
+          background: white;
+          border-radius: 18px;
+          width: fit-content;
+          margin-top: 5px;
+        }
+
+        .typing-indicator span {
+          width: 6px;
+          height: 6px;
+          background: #999;
+          border-radius: 50%;
+          animation: typing 1.4s infinite;
+        }
+
+        .typing-indicator span:nth-child(2) {
+          animation-delay: 0.2s;
+        }
+
+        .typing-indicator span:nth-child(3) {
+          animation-delay: 0.4s;
+        }
+
+        @keyframes typing {
+          0%, 60%, 100% {
+            transform: translateY(0);
+            opacity: 0.4;
+          }
+          30% {
+            transform: translateY(-5px);
+            opacity: 1;
+          }
+        }
+
+        .typing-text {
+          font-size: 0.7rem;
+          color: #999;
+          margin-left: 5px;
+        }
+
         .message-reply {
-          padding: 15px;
+          padding: 16px 20px;
           border-top: 1px solid #e0e0e0;
           display: flex;
-          gap: 10px;
+          gap: 12px;
           background: white;
         }
 
         .message-reply textarea {
           flex: 1;
-          padding: 10px 14px;
+          padding: 10px 16px;
           border: 1px solid #e0e0e0;
-          border-radius: 20px;
+          border-radius: 24px;
           resize: none;
           font-family: inherit;
           font-size: 0.85rem;
@@ -935,6 +1118,7 @@ const ChatModal = ({ isOpen, onClose, recipient, onMessageSent }) => {
         .message-reply textarea:focus {
           outline: none;
           border-color: #1a3a5c;
+          box-shadow: 0 0 0 3px rgba(26, 58, 92, 0.1);
         }
 
         .message-reply button {
@@ -960,46 +1144,41 @@ const ChatModal = ({ isOpen, onClose, recipient, onMessageSent }) => {
         }
 
         /* Empty States */
-        .empty-conversations {
-          text-align: center;
-          padding: 40px 20px;
-        }
-
-        .empty-conversations i {
-          font-size: 3rem;
-          color: #ccc;
-          margin-bottom: 10px;
-        }
-
-        .empty-conversations p {
-          margin: 0;
-          color: #999;
-        }
-
-        .empty-conversations span {
-          font-size: 0.75rem;
-          color: #bbb;
-        }
-
+        .empty-conversations,
         .empty-messages {
           text-align: center;
           padding: 60px 20px;
         }
 
+        .empty-conversations i,
         .empty-messages i {
           font-size: 4rem;
           color: #ccc;
           margin-bottom: 15px;
         }
 
-        .empty-messages h3 {
-          margin: 0 0 5px;
-          color: #666;
+        .empty-conversations p,
+        .empty-messages p {
+          margin: 0;
+          color: #999;
+          font-size: 0.9rem;
         }
 
-        .empty-messages p {
-          color: #999;
-          font-size: 0.85rem;
+        .empty-conversations span,
+        .empty-messages span {
+          font-size: 0.75rem;
+          color: #bbb;
+        }
+
+        .empty-messages-state {
+          text-align: center;
+          padding: 40px;
+        }
+
+        .empty-messages-state i {
+          font-size: 3rem;
+          color: #ccc;
+          margin-bottom: 10px;
         }
 
         /* Responsive */
@@ -1037,4 +1216,4 @@ const ChatModal = ({ isOpen, onClose, recipient, onMessageSent }) => {
   );
 };
 
-export default ChatModal;
+export default ChatModal; 
