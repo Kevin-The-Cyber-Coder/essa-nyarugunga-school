@@ -2,7 +2,6 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import Swal from 'sweetalert2';
 import io from 'socket.io-client';
-import ChatModal from '../components/ChatModal';
 
 // API Base URL
 const API_URL = 'http://localhost:5000/api';
@@ -37,29 +36,13 @@ const AcademicAdminDashboard = () => {
   const navigate = useNavigate();
   const getToken = () => localStorage.getItem('portalToken');
 
-  // Helper function for API calls
   const apiRequest = async (endpoint, options = {}) => {
     const token = getToken();
-    const headers = {
-      'Content-Type': 'application/json',
-      ...options.headers,
-    };
-    
-    if (token) {
-      headers['Authorization'] = `Bearer ${token}`;
-    }
-    
-    const response = await fetch(`${API_URL}${endpoint}`, {
-      ...options,
-      headers,
-    });
-    
+    const headers = { 'Content-Type': 'application/json', ...options.headers };
+    if (token) headers['Authorization'] = `Bearer ${token}`;
+    const response = await fetch(`${API_URL}${endpoint}`, { ...options, headers });
     const data = await response.json();
-    
-    if (!response.ok) {
-      throw new Error(data.message || 'Something went wrong');
-    }
-    
+    if (!response.ok) throw new Error(data.message || 'Something went wrong');
     return data;
   };
 
@@ -73,7 +56,6 @@ const AcademicAdminDashboard = () => {
     return () => window.removeEventListener('resize', checkMobile);
   }, []);
 
-  // Socket.IO
   useEffect(() => {
     const newSocket = io('http://localhost:5000');
     setSocket(newSocket);
@@ -81,9 +63,7 @@ const AcademicAdminDashboard = () => {
     if (userId) newSocket.emit('join', userId);
     newSocket.on('newMessage', () => {
       fetchUnreadCount();
-      if (activeTab === 'messages') {
-        fetchUsers();
-      }
+      if (activeTab === 'messages') fetchUsers();
     });
     return () => newSocket.disconnect();
   }, []);
@@ -92,7 +72,6 @@ const AcademicAdminDashboard = () => {
     const token = getToken();
     const role = localStorage.getItem('userRole');
     const name = localStorage.getItem('userName');
-    
     if (!token || role !== 'academic_admin') {
       navigate('/portal/login');
     } else {
@@ -114,7 +93,6 @@ const AcademicAdminDashboard = () => {
         apiRequest('/academic-admin/class-performance').catch(() => []),
         apiRequest('/announcements').catch(() => [])
       ]);
-      
       setTeachers(Array.isArray(teachersData) ? teachersData : []);
       setClasses(Array.isArray(classesData) ? classesData : []);
       setNews(Array.isArray(newsData) ? newsData : []);
@@ -122,7 +100,6 @@ const AcademicAdminDashboard = () => {
       setStudentPerformance(Array.isArray(perfData) ? perfData : []);
       setClassPerformance(Array.isArray(classPerfData) ? classPerfData : []);
       setAnnouncements(Array.isArray(annData) ? annData : []);
-      
     } catch (error) {
       console.error('Error fetching data:', error);
       Swal.fire('Error', 'Failed to load data', 'error');
@@ -160,7 +137,6 @@ const AcademicAdminDashboard = () => {
 
   const handleSendMessage = async () => {
     if (!messageText.trim() || !selectedUser) return;
-    
     try {
       const data = await apiRequest('/messages/send', {
         method: 'POST',
@@ -169,13 +145,10 @@ const AcademicAdminDashboard = () => {
       if (data.success) {
         setMessages([...messages, data.message]);
         setMessageText('');
-        if (socket) {
-          socket.emit('sendMessage', { receiverId: selectedUser._id, ...data.message });
-        }
+        if (socket) socket.emit('sendMessage', { receiverId: selectedUser._id, ...data.message });
         fetchUnreadCount();
       }
     } catch (error) {
-      console.error('Error sending message:', error);
       Swal.fire('Error', 'Failed to send message', 'error');
     }
   };
@@ -190,12 +163,27 @@ const AcademicAdminDashboard = () => {
     const { value: formValues } = await Swal.fire({
       title: 'Create Teacher Account',
       html: `
-        <div class="admin-form">
-          <div class="form-group"><i class="fas fa-user"></i><input type="text" id="fullName" placeholder="Full Name *" required></div>
-          <div class="form-group"><i class="fas fa-envelope"></i><input type="email" id="email" placeholder="Email *" required></div>
-          <div class="form-group"><i class="fas fa-lock"></i><input type="password" id="password" placeholder="Password (default: teacher123)"></div>
-          <div class="form-group"><i class="fas fa-book"></i><input type="text" id="subject" placeholder="Subject"></div>
-          <div class="form-group"><i class="fas fa-phone"></i><input type="tel" id="phone" placeholder="Phone Number"></div>
+        <div style="display: flex; flex-direction: column; gap: 12px;">
+          <div style="position: relative;">
+            <i class="fas fa-user" style="position: absolute; left: 12px; top: 50%; transform: translateY(-50%); color: #999;"></i>
+            <input type="text" id="fullName" class="swal2-input" placeholder="Full Name *" style="padding-left: 40px;" required>
+          </div>
+          <div style="position: relative;">
+            <i class="fas fa-envelope" style="position: absolute; left: 12px; top: 50%; transform: translateY(-50%); color: #999;"></i>
+            <input type="email" id="email" class="swal2-input" placeholder="Email *" style="padding-left: 40px;" required>
+          </div>
+          <div style="position: relative;">
+            <i class="fas fa-lock" style="position: absolute; left: 12px; top: 50%; transform: translateY(-50%); color: #999;"></i>
+            <input type="password" id="password" class="swal2-input" placeholder="Password (default: teacher123)" style="padding-left: 40px;">
+          </div>
+          <div style="position: relative;">
+            <i class="fas fa-book" style="position: absolute; left: 12px; top: 50%; transform: translateY(-50%); color: #999;"></i>
+            <input type="text" id="subject" class="swal2-input" placeholder="Subject" style="padding-left: 40px;">
+          </div>
+          <div style="position: relative;">
+            <i class="fas fa-phone" style="position: absolute; left: 12px; top: 50%; transform: translateY(-50%); color: #999;"></i>
+            <input type="tel" id="phone" class="swal2-input" placeholder="Phone Number" style="padding-left: 40px;">
+          </div>
         </div>
       `,
       confirmButtonText: 'Create Teacher',
@@ -227,7 +215,14 @@ const AcademicAdminDashboard = () => {
         });
         Swal.fire({
           title: '✅ Teacher Created!',
-          html: `<div class="credentials-box"><p><strong>Name:</strong> ${formValues.fullName}</p><p><strong>Email:</strong> ${formValues.email}</p><p><strong>Password:</strong> <code>${formValues.password}</code></p><p><strong>Subject:</strong> ${formValues.subject}</p></div>`,
+          html: `
+            <div style="text-align: left; background: #f0f4f8; padding: 15px; border-radius: 8px;">
+              <p><strong>Name:</strong> ${formValues.fullName}</p>
+              <p><strong>Email:</strong> ${formValues.email}</p>
+              <p><strong>Password:</strong> <code style="background: #1a3a5c; color: white; padding: 2px 8px; border-radius: 4px;">${formValues.password}</code></p>
+              <p><strong>Subject:</strong> ${formValues.subject}</p>
+            </div>
+          `,
           icon: 'success'
         });
         fetchAllData();
@@ -246,7 +241,6 @@ const AcademicAdminDashboard = () => {
       confirmButtonColor: '#e74c3c',
       confirmButtonText: 'Yes, Delete'
     });
-    
     if (result.isConfirmed) {
       try {
         await apiRequest(`/academic-admin/teachers/${teacher._id}`, { method: 'DELETE' });
@@ -273,11 +267,28 @@ const AcademicAdminDashboard = () => {
     const { value: formValues } = await Swal.fire({
       title: 'Create Class',
       html: `
-        <div class="admin-form">
-          <div class="form-group"><i class="fas fa-tag"></i><input type="text" id="className" placeholder="Class Name (e.g., A, B, C)" required></div>
-          <div class="form-group"><i class="fas fa-layer-group"></i><select id="grade"><option value="S1">S1</option><option value="S2">S2</option><option value="S3">S3</option><option value="S4">S4</option><option value="S5">S5</option><option value="S6">S6</option></select></div>
-          <div class="form-group"><i class="fas fa-calendar"></i><input type="text" id="academicYear" placeholder="Academic Year (e.g., 2026)" required></div>
-          <div class="form-group"><i class="fas fa-chalkboard-user"></i><select id="teacherId">${Object.entries(teacherOptions).map(([value, label]) => `<option value="${value}">${label}</option>`).join('')}</select></div>
+        <div style="display: flex; flex-direction: column; gap: 12px;">
+          <div style="position: relative;">
+            <i class="fas fa-tag" style="position: absolute; left: 12px; top: 50%; transform: translateY(-50%); color: #999;"></i>
+            <input type="text" id="className" class="swal2-input" placeholder="Class Name (e.g., A, B, C)" style="padding-left: 40px;" required>
+          </div>
+          <div style="position: relative;">
+            <i class="fas fa-layer-group" style="position: absolute; left: 12px; top: 50%; transform: translateY(-50%); color: #999;"></i>
+            <select id="grade" class="swal2-select" style="padding-left: 40px; width: 100%;">
+              <option value="S1">S1</option><option value="S2">S2</option><option value="S3">S3</option>
+              <option value="S4">S4</option><option value="S5">S5</option><option value="S6">S6</option>
+            </select>
+          </div>
+          <div style="position: relative;">
+            <i class="fas fa-calendar" style="position: absolute; left: 12px; top: 50%; transform: translateY(-50%); color: #999;"></i>
+            <input type="text" id="academicYear" class="swal2-input" placeholder="Academic Year (e.g., 2026)" style="padding-left: 40px;" required>
+          </div>
+          <div style="position: relative;">
+            <i class="fas fa-chalkboard-user" style="position: absolute; left: 12px; top: 50%; transform: translateY(-50%); color: #999;"></i>
+            <select id="teacherId" class="swal2-select" style="padding-left: 40px; width: 100%;">
+              ${Object.entries(teacherOptions).map(([value, label]) => `<option value="${value}">${label}</option>`).join('')}
+            </select>
+          </div>
         </div>
       `,
       confirmButtonText: 'Create Class',
@@ -319,7 +330,6 @@ const AcademicAdminDashboard = () => {
       confirmButtonColor: '#e74c3c',
       confirmButtonText: 'Yes, Delete'
     });
-    
     if (result.isConfirmed) {
       try {
         await apiRequest(`/academic-admin/classes/${classItem._id}`, { method: 'DELETE' });
@@ -362,17 +372,13 @@ const AcademicAdminDashboard = () => {
     
     if (selectedTeacherId) {
       const teacherIdToAssign = selectedTeacherId === 'none' ? null : selectedTeacherId;
-      
       try {
         Swal.fire({ title: 'Assigning...', allowOutsideClick: false, showConfirmButton: false, willOpen: () => Swal.showLoading() });
-        
         const data = await apiRequest(`/academic-admin/classes/${classItem._id}/assign-teacher`, {
           method: 'PUT',
           body: JSON.stringify({ teacherId: teacherIdToAssign })
         });
-        
         Swal.close();
-        
         if (data.success) {
           setClasses(prevClasses => prevClasses.map(c => c._id === data.class._id ? data.class : c));
           Swal.fire({ title: 'Success!', text: teacherIdToAssign ? 'Teacher assigned successfully' : 'Teacher removed', icon: 'success', timer: 2000 });
@@ -386,7 +392,6 @@ const AcademicAdminDashboard = () => {
 
   const handleRefreshClasses = async () => {
     Swal.fire({ title: 'Refreshing...', allowOutsideClick: false, showConfirmButton: false, willOpen: () => Swal.showLoading() });
-    
     try {
       const classesData = await apiRequest('/academic-admin/classes');
       setClasses(Array.isArray(classesData) ? classesData : []);
@@ -403,12 +408,31 @@ const AcademicAdminDashboard = () => {
     const { value: formValues } = await Swal.fire({
       title: 'Create News/Event',
       html: `
-        <div class="admin-form">
-          <div class="form-group"><i class="fas fa-heading"></i><input type="text" id="title" placeholder="Title" required></div>
-          <div class="form-group"><i class="fas fa-align-left"></i><textarea id="summary" placeholder="Short Summary" required rows="3"></textarea></div>
-          <div class="form-group"><i class="fas fa-file-alt"></i><textarea id="content" placeholder="Full Content (optional)" rows="4"></textarea></div>
-          <div class="form-group"><i class="fas fa-image"></i><input type="text" id="image" placeholder="Image URL"></div>
-          <div class="form-group"><i class="fas fa-tag"></i><select id="category"><option value="news">📰 News</option><option value="event">🎉 Event</option><option value="announcement">📢 Announcement</option></select></div>
+        <div style="display: flex; flex-direction: column; gap: 12px;">
+          <div style="position: relative;">
+            <i class="fas fa-heading" style="position: absolute; left: 12px; top: 50%; transform: translateY(-50%); color: #999;"></i>
+            <input type="text" id="title" class="swal2-input" placeholder="Title" style="padding-left: 40px;" required>
+          </div>
+          <div style="position: relative;">
+            <i class="fas fa-align-left" style="position: absolute; left: 12px; top: 15px; color: #999;"></i>
+            <textarea id="summary" class="swal2-textarea" placeholder="Short Summary" rows="3" style="padding-left: 40px;" required></textarea>
+          </div>
+          <div style="position: relative;">
+            <i class="fas fa-file-alt" style="position: absolute; left: 12px; top: 15px; color: #999;"></i>
+            <textarea id="content" class="swal2-textarea" placeholder="Full Content (optional)" rows="4" style="padding-left: 40px;"></textarea>
+          </div>
+          <div style="position: relative;">
+            <i class="fas fa-image" style="position: absolute; left: 12px; top: 50%; transform: translateY(-50%); color: #999;"></i>
+            <input type="text" id="image" class="swal2-input" placeholder="Image URL" style="padding-left: 40px;">
+          </div>
+          <div style="position: relative;">
+            <i class="fas fa-tag" style="position: absolute; left: 12px; top: 50%; transform: translateY(-50%); color: #999;"></i>
+            <select id="category" class="swal2-select" style="padding-left: 40px; width: 100%;">
+              <option value="news">📰 News</option>
+              <option value="event">🎉 Event</option>
+              <option value="announcement">📢 Announcement</option>
+            </select>
+          </div>
         </div>
       `,
       confirmButtonText: 'Publish',
@@ -436,6 +460,18 @@ const AcademicAdminDashboard = () => {
         await apiRequest('/academic-admin/news', { method: 'POST', body: JSON.stringify(formValues) });
         Swal.fire('Published!', 'News/Event added successfully', 'success');
         fetchAllData();
+        // Redirect to news page notification
+        Swal.fire({
+          title: 'View on Website',
+          text: 'News has been published. Click OK to view on the news page.',
+          icon: 'info',
+          confirmButtonText: 'View News Page',
+          showCancelButton: true
+        }).then((result) => {
+          if (result.isConfirmed) {
+            window.open('/news', '_blank');
+          }
+        });
       } catch (error) {
         Swal.fire('Error', 'Failed to publish news', 'error');
       }
@@ -451,7 +487,6 @@ const AcademicAdminDashboard = () => {
       confirmButtonColor: '#e74c3c',
       confirmButtonText: 'Yes, Delete'
     });
-    
     if (result.isConfirmed) {
       try {
         await apiRequest(`/academic-admin/news/${newsItem._id}`, { method: 'DELETE' });
@@ -468,10 +503,24 @@ const AcademicAdminDashboard = () => {
     const { value: formValues } = await Swal.fire({
       title: 'Add Gallery Image',
       html: `
-        <div class="admin-form">
-          <div class="form-group"><i class="fas fa-heading"></i><input type="text" id="title" placeholder="Image Title" required></div>
-          <div class="form-group"><i class="fas fa-image"></i><input type="text" id="image" placeholder="Image URL" required></div>
-          <div class="form-group"><i class="fas fa-tag"></i><select id="category"><option value="academic">📚 Academic</option><option value="sports">⚽ Sports</option><option value="cultural">🎭 Cultural</option><option value="events">🎪 Events</option></select></div>
+        <div style="display: flex; flex-direction: column; gap: 12px;">
+          <div style="position: relative;">
+            <i class="fas fa-heading" style="position: absolute; left: 12px; top: 50%; transform: translateY(-50%); color: #999;"></i>
+            <input type="text" id="title" class="swal2-input" placeholder="Image Title" style="padding-left: 40px;" required>
+          </div>
+          <div style="position: relative;">
+            <i class="fas fa-image" style="position: absolute; left: 12px; top: 50%; transform: translateY(-50%); color: #999;"></i>
+            <input type="text" id="image" class="swal2-input" placeholder="Image URL" style="padding-left: 40px;" required>
+          </div>
+          <div style="position: relative;">
+            <i class="fas fa-tag" style="position: absolute; left: 12px; top: 50%; transform: translateY(-50%); color: #999;"></i>
+            <select id="category" class="swal2-select" style="padding-left: 40px; width: 100%;">
+              <option value="academic">📚 Academic</option>
+              <option value="sports">⚽ Sports</option>
+              <option value="cultural">🎭 Cultural</option>
+              <option value="events">🎪 Events</option>
+            </select>
+          </div>
         </div>
       `,
       confirmButtonText: 'Add Image',
@@ -494,6 +543,18 @@ const AcademicAdminDashboard = () => {
         await apiRequest('/academic-admin/gallery', { method: 'POST', body: JSON.stringify(formValues) });
         Swal.fire('Added!', 'Image added to gallery', 'success');
         fetchAllData();
+        // Redirect to gallery page notification
+        Swal.fire({
+          title: 'View on Website',
+          text: 'Image has been added to gallery. Click OK to view on the gallery page.',
+          icon: 'info',
+          confirmButtonText: 'View Gallery Page',
+          showCancelButton: true
+        }).then((result) => {
+          if (result.isConfirmed) {
+            window.open('/gallery', '_blank');
+          }
+        });
       } catch (error) {
         Swal.fire('Error', 'Failed to add image', 'error');
       }
@@ -509,7 +570,6 @@ const AcademicAdminDashboard = () => {
       confirmButtonColor: '#e74c3c',
       confirmButtonText: 'Yes, Delete'
     });
-    
     if (result.isConfirmed) {
       try {
         await apiRequest(`/academic-admin/gallery/${image._id}`, { method: 'DELETE' });
@@ -554,7 +614,6 @@ const AcademicAdminDashboard = () => {
     <div className="academic-admin-dashboard">
       {mobileMenuOpen && <div className="mobile-overlay" onClick={() => setMobileMenuOpen(false)} />}
 
-      {/* Sidebar */}
       <aside className={`sidebar ${sidebarCollapsed ? 'collapsed' : ''}`} style={{ width: isMobile ? sidebarWidthMobile : sidebarWidth }}>
         <div className="sidebar-header">
           {!sidebarCollapsed && (
@@ -581,30 +640,20 @@ const AcademicAdminDashboard = () => {
         <div className="sidebar-nav-wrapper">
           <nav className="sidebar-nav">
             {menuItems.map((item) => (
-              <button
-                key={item.id}
-                className={`nav-item ${activeTab === item.id ? 'active' : ''}`}
-                onClick={() => { setActiveTab(item.id); if (isMobile) setMobileMenuOpen(false); }}
-              >
+              <button key={item.id} className={`nav-item ${activeTab === item.id ? 'active' : ''}`} onClick={() => { setActiveTab(item.id); if (isMobile) setMobileMenuOpen(false); }}>
                 <i className={item.icon} style={{ color: item.color }}></i>
                 {!sidebarCollapsed && <span>{item.label}</span>}
-                {item.id === 'messages' && unreadCount > 0 && !sidebarCollapsed && (
-                  <span className="nav-badge">{unreadCount}</span>
-                )}
+                {item.id === 'messages' && unreadCount > 0 && !sidebarCollapsed && <span className="nav-badge">{unreadCount}</span>}
               </button>
             ))}
           </nav>
         </div>
 
         <div className="sidebar-footer">
-          <button className="logout-btn" onClick={handleLogout}>
-            <i className="fas fa-sign-out-alt"></i>
-            {!sidebarCollapsed && <span>Logout</span>}
-          </button>
+          <button className="logout-btn" onClick={handleLogout}><i className="fas fa-sign-out-alt"></i>{!sidebarCollapsed && <span>Logout</span>}</button>
         </div>
       </aside>
 
-      {/* Main Content */}
       <main className="main-content" style={{ marginLeft: isMobile ? '0' : sidebarWidth }}>
         <div className="top-bar">
           <div className="top-bar-left">
@@ -633,7 +682,6 @@ const AcademicAdminDashboard = () => {
               <div className="stat-card"><div className="stat-icon" style={{ background: '#fff3e0' }}><i className="fas fa-newspaper" style={{ color: '#f39c12' }}></i></div><div className="stat-info"><h3>{news.length}</h3><p>News & Events</p><span className="stat-trend">Published articles</span></div></div>
               <div className="stat-card"><div className="stat-icon" style={{ background: '#fdecea' }}><i className="fas fa-images" style={{ color: '#e74c3c' }}></i></div><div className="stat-info"><h3>{gallery.length}</h3><p>Gallery Images</p><span className="stat-trend">Captured moments</span></div></div>
             </div>
-
             <div className="quick-actions">
               <button onClick={handleCreateTeacher} className="action-btn primary"><i className="fas fa-user-plus"></i> Add Teacher</button>
               <button onClick={handleCreateClass} className="action-btn secondary"><i className="fas fa-plus-circle"></i> Create Class</button>
@@ -643,232 +691,60 @@ const AcademicAdminDashboard = () => {
           </div>
         )}
 
-       {/* Teachers Tab */}
-{activeTab === 'teachers' && (
-  <div className="data-card">
+        {/* Teachers Tab */}
+        {activeTab === 'teachers' && (
+          <div className="data-card">
+            <div className="card-header"><h2><i className="fas fa-chalkboard-user"></i> Teachers</h2><button onClick={handleCreateTeacher} className="btn-primary-sm"><i className="fas fa-plus"></i> Add Teacher</button></div>
+            <div className="table-responsive">
+              <table className="data-table">
+                <thead><tr><th>Teacher</th><th>Email</th><th>Subject</th><th>Phone</th><th>Actions</th></tr></thead>
+                <tbody>
+                  {teachers.map(t => <tr key={t._id}><td><strong>{t.fullName}</strong></td><td>{t.email}</td><td>{t.subject || '-'}</td><td>{t.phone || '-'}</td><td><button onClick={() => handleDeleteTeacher(t)} className="delete-btn-sm"><i className="fas fa-trash"></i></button></td></tr>)}
+                  {teachers.length === 0 && <tr><td colSpan="5" className="no-data">No teachers yet. Click "Add Teacher" to create one.</td></tr>}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
 
-    <div className="card-header">
-
-      <h2>
-        <i className="fas fa-chalkboard-user"></i>
-        {' '}Teachers
-      </h2>
-
-      <button
-        onClick={handleCreateTeacher}
-        className="btn-primary-sm"
-      >
-        <i className="fas fa-plus"></i>
-        {' '}Add Teacher
-      </button>
-
-    </div>
-
-    <div className="table-responsive">
-
-      <table className="data-table">
-
-        <thead>
-          <tr>
-            <th>Teacher</th>
-            <th>Email</th>
-            <th>Subject</th>
-            <th>Phone</th>
-            <th>Actions</th>
-          </tr>
-        </thead>
-
-        <tbody>
-
-          {teachers.map((t) => (
-            <tr key={t._id}>
-
-              <td>
-                <strong>{t.fullName}</strong>
-              </td>
-
-              <td>{t.email}</td>
-
-              <td>{t.subject || '-'}</td>
-
-              <td>{t.phone || '-'}</td>
-
-              <td>
-                <button
-                  onClick={() =>
-                    handleDeleteTeacher(t)
-                  }
-                  className="delete-btn-sm"
-                >
-                  <i className="fas fa-trash"></i>
-                </button>
-              </td>
-
-            </tr>
-          ))}
-
-          {teachers.length === 0 && (
-            <tr>
-              <td
-                colSpan="5"
-                className="no-data"
-              >
-                No teachers yet.
-                Click "Add Teacher"
-                to create one.
-              </td>
-            </tr>
-          )}
-
-        </tbody>
-
-      </table>
-
-    </div>
-
-  </div>
-)}
         {/* Classes Tab */}
-{activeTab === 'classes' && (
-  <div className="data-card">
-
-    <div className="card-header">
-
-      <h2>
-        <i className="fas fa-school"></i>
-        {' '}Classes
-      </h2>
-
-      <div className="header-actions">
-
-        <button
-          onClick={handleRefreshClasses}
-          className="btn-secondary-sm"
-        >
-          <i className="fas fa-sync-alt"></i>
-          {' '}Refresh
-        </button>
-
-        <button
-          onClick={handleCreateClass}
-          className="btn-primary-sm"
-        >
-          <i className="fas fa-plus"></i>
-          {' '}Create Class
-        </button>
-
-      </div>
-
-    </div>
-
-    <div className="table-responsive">
-
-      <table className="data-table">
-
-        <thead>
-          <tr>
-            <th>Grade</th>
-            <th>Class Name</th>
-            <th>Academic Year</th>
-            <th>Teacher</th>
-            <th>Actions</th>
-          </tr>
-        </thead>
-
-        <tbody>
-
-          {classes.map((c) => (
-            <tr key={c._id}>
-
-              <td>
-                <strong>{c.grade}</strong>
-              </td>
-
-              <td>{c.className}</td>
-
-              <td>{c.academicYear}</td>
-
-              <td>
-                {c.teacherId &&
-                typeof c.teacherId ===
-                  'object' &&
-                c.teacherId.fullName ? (
-
-                  <span className="assigned-badge">
-                    <i className="fas fa-chalkboard-user"></i>
-                    {' '}
-                    {c.teacherId.fullName}
-                  </span>
-
-                ) : (
-
-                  <span className="unassigned-badge">
-                    Not Assigned
-                  </span>
-
-                )}
-              </td>
-
-              <td>
-
-                <div className="action-buttons">
-
-                  <button
-                    onClick={() =>
-                      handleAssignTeacher(c)
-                    }
-                    className="assign-btn"
-                  >
-                    <i className="fas fa-user-plus"></i>
-                    {' '}Assign
-                  </button>
-
-                  <button
-                    onClick={() =>
-                      handleDeleteClass(c)
-                    }
-                    className="delete-btn-sm"
-                  >
-                    <i className="fas fa-trash"></i>
-                  </button>
-
-                </div>
-
-              </td>
-
-            </tr>
-          ))}
-
-          {classes.length === 0 && (
-            <tr>
-
-              <td
-                colSpan="5"
-                className="no-data"
-              >
-                No classes yet.
-                Click "Create Class"
-                to create one.
-              </td>
-
-            </tr>
-          )}
-
-        </tbody>
-
-      </table>
-
-    </div>
-
-  </div>
-)}
+        {activeTab === 'classes' && (
+          <div className="data-card">
+            <div className="card-header"><h2><i className="fas fa-school"></i> Classes</h2>
+              <div className="header-actions"><button onClick={handleRefreshClasses} className="btn-secondary-sm"><i className="fas fa-sync-alt"></i> Refresh</button><button onClick={handleCreateClass} className="btn-primary-sm"><i className="fas fa-plus"></i> Create Class</button></div>
+            </div>
+            <div className="table-responsive">
+              <table className="data-table">
+                <thead><tr><th>Grade</th><th>Class Name</th><th>Academic Year</th><th>Teacher</th><th>Actions</th></tr></thead>
+                <tbody>
+                  {classes.map(c => <tr key={c._id}><td><strong>{c.grade}</strong></td>}<c.className} </td>}<c.academicYear} <td>{c.teacherId && typeof c.teacherId === 'object' && c.teacherId.fullName ? <span className="assigned-badge"><i className="fas fa-chalkboard-user"></i> {c.teacherId.fullName}</span> : <span className="unassigned-badge">Not Assigned</span>} <td><div className="action-buttons"><button onClick={() => handleAssignTeacher(c)} className="assign-btn"><i className="fas fa-user-plus"></i> Assign</button><button onClick={() => handleDeleteClass(c)} className="delete-btn-sm"><i className="fas fa-trash"></i></button></div></td></tr>)}
+                  {classes.length === 0 && <tr><td colSpan="5" className="no-data">No classes yet. Click "Create Class" to create one.ERC20</tr>}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
 
         {/* News Tab */}
         {activeTab === 'news' && (
           <div className="data-card">
             <div className="card-header"><h2><i className="fas fa-newspaper"></i> News & Events</h2><button onClick={handleCreateNews} className="btn-primary-sm"><i className="fas fa-plus"></i> Post News</button></div>
-            <div className="news-list">{news.map(item => (<div key={item._id} className="news-item"><div className="news-content"><h3>{item.title}</h3><p>{item.summary}</p><div className="news-meta"><span className={`category-badge ${item.category}`}><i className={`fas ${item.category === 'news' ? 'fa-newspaper' : item.category === 'event' ? 'fa-calendar' : 'fa-bullhorn'}`}></i> {item.category}</span><span><i className="fas fa-calendar"></i> {new Date(item.date).toLocaleDateString()}</span></div></div><button onClick={() => handleDeleteNews(item)} className="delete-btn-sm"><i className="fas fa-trash"></i></button></div>))}
-            {news.length === 0 && <p className="no-data">No news articles yet. Click "Post News" to create one.</p>}</div>
+            <div className="news-list">
+              {news.map(item => (
+                <div key={item._id} className="news-item">
+                  <div className="news-content">
+                    <h3>{item.title}</h3>
+                    <p>{item.summary}</p>
+                    <div className="news-meta">
+                      <span className={`category-badge ${item.category}`}><i className={`fas ${item.category === 'news' ? 'fa-newspaper' : item.category === 'event' ? 'fa-calendar' : 'fa-bullhorn'}`}></i> {item.category}</span>
+                      <span><i className="fas fa-calendar"></i> {new Date(item.date).toLocaleDateString()}</span>
+                    </div>
+                  </div>
+                  <button onClick={() => handleDeleteNews(item)} className="delete-btn-sm"><i className="fas fa-trash"></i></button>
+                </div>
+              ))}
+              {news.length === 0 && <p className="no-data">No news articles yet. Click "Post News" to create one.</p>}
+            </div>
           </div>
         )}
 
@@ -877,7 +753,18 @@ const AcademicAdminDashboard = () => {
           <div className="data-card">
             <div className="card-header"><h2><i className="fas fa-images"></i> Gallery</h2><button onClick={handleAddGalleryImage} className="btn-primary-sm"><i className="fas fa-plus"></i> Add Image</button></div>
             {gallery.length === 0 ? <p className="no-data">No images in gallery. Click "Add Image" to upload.</p> : (
-              <div className="gallery-grid">{gallery.map(img => (<div key={img._id} className="gallery-item"><img src={img.image} alt={img.title} /><div className="gallery-overlay"><h4>{img.title}</h4><span className="category-tag">{img.category}</span><button onClick={() => handleDeleteGalleryImage(img)} className="delete-btn"><i className="fas fa-trash"></i> Delete</button></div></div>))}</div>
+              <div className="gallery-grid">
+                {gallery.map(img => (
+                  <div key={img._id} className="gallery-item">
+                    <img src={img.image} alt={img.title} />
+                    <div className="gallery-overlay">
+                      <h4>{img.title}</h4>
+                      <span className="category-tag">{img.category}</span>
+                      <button onClick={() => handleDeleteGalleryImage(img)} className="delete-btn"><i className="fas fa-trash"></i> Delete</button>
+                    </div>
+                  </div>
+                ))}
+              </div>
             )}
           </div>
         )}
@@ -886,157 +773,58 @@ const AcademicAdminDashboard = () => {
         {activeTab === 'announcements' && (
           <div className="data-card">
             <h2><i className="fas fa-bullhorn"></i> School Announcements</h2>
-            <div className="announcements-list">{announcements.map(ann => (<div key={ann._id} className={`announcement-item ${ann.priority}`}><div className="announcement-header"><div><h3>{ann.title}</h3><span className={`priority-badge ${ann.priority}`}>{ann.priority === 'urgent' ? '🔴 URGENT' : ann.priority === 'high' ? '⚠️ HIGH' : 'ℹ️ NORMAL'}</span></div></div><p>{ann.content}</p><div className="announcement-footer"><span><i className="fas fa-clock"></i> {new Date(ann.createdAt).toLocaleDateString()}</span></div></div>))}
-            {announcements.length === 0 && <p className="no-data">No announcements yet.</p>}</div>
+            <div className="announcements-list">
+              {announcements.map(ann => (
+                <div key={ann._id} className={`announcement-item ${ann.priority}`}>
+                  <div className="announcement-header">
+                    <div><h3>{ann.title}</h3><span className={`priority-badge ${ann.priority}`}>{ann.priority === 'urgent' ? '🔴 URGENT' : ann.priority === 'high' ? '⚠️ HIGH' : 'ℹ️ NORMAL'}</span></div>
+                  </div>
+                  <p>{ann.content}</p>
+                  <div className="announcement-footer"><span><i className="fas fa-clock"></i> {new Date(ann.createdAt).toLocaleDateString()}</span></div>
+                </div>
+              ))}
+              {announcements.length === 0 && <p className="no-data">No announcements yet.</p>}
+            </div>
           </div>
         )}
 
-      {/* Performance Tab */}
-{activeTab === 'performance' && (
-  <div>
+        {/* Performance Tab */}
+        {activeTab === 'performance' && (
+          <div>
+            <div className="data-card">
+              <h2><i className="fas fa-chart-line"></i> Class Performance</h2>
+              <div className="table-responsive">
+                <table className="data-table">
+                  <thead><tr><th>Class</th><th>Teacher</th><th>Students</th><th>Avg Score</th></tr></thead>
+                  <tbody>
+                    {classPerformance.map((c, i) => <tr key={i}><td><strong>{c.className}</strong></td>}<c.teacher} </td>}<c.studentCount} <td><span className="score-badge">{c.averageScore}%</span></td></tr>)}
+                    {classPerformance.length === 0 && <tr><td colSpan="4" className="no-data">No performance data available yet.ERC20</td>}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+            <div className="data-card">
+              <h2><i className="fas fa-trophy"></i> Top Students</h2>
+              <div className="table-responsive">
+                <table className="data-table">
+                  <thead><tr><th>Student ID</th><th>Name</th><th>Class</th><th>Average</th></tr></thead>
+                  <tbody>
+                    {studentPerformance.slice(0, 10).map((s, i) => <tr key={i}><td>{s.studentId}</td>}<strong>{s.name}</strong> <td><strong>{s.class}</strong> <td><span className="score-badge success">{s.averageScore}%</span></td></td>)}
+                    {studentPerformance.length === 0 && <tr><td colSpan="4" className="no-data">No student performance data available yet.ERC20</tr>}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        )}
 
-    {/* Class Performance */}
-    <div className="data-card">
-
-      <h2>
-        <i className="fas fa-chart-line"></i>
-        {' '}Class Performance
-      </h2>
-
-      <div className="table-responsive">
-
-        <table className="data-table">
-
-          <thead>
-            <tr>
-              <th>Class</th>
-              <th>Teacher</th>
-              <th>Students</th>
-              <th>Avg Score</th>
-            </tr>
-          </thead>
-
-          <tbody>
-
-            {classPerformance.map((c, i) => (
-              <tr key={i}>
-
-                <td>
-                  <strong>{c.className}</strong>
-                </td>
-
-                <td>{c.teacher}</td>
-
-                <td>{c.studentCount}</td>
-
-                <td>
-                  <span className="score-badge">
-                    {c.averageScore}%
-                  </span>
-                </td>
-
-              </tr>
-            ))}
-
-            {classPerformance.length === 0 && (
-              <tr>
-                <td
-                  colSpan="4"
-                  className="no-data"
-                >
-                  No performance data available yet.
-                </td>
-              </tr>
-            )}
-
-          </tbody>
-
-        </table>
-
-      </div>
-
-    </div>
-
-    {/* Top Students */}
-    <div className="data-card">
-
-      <h2>
-        <i className="fas fa-trophy"></i>
-        {' '}Top Students
-      </h2>
-
-      <div className="table-responsive">
-
-        <table className="data-table">
-
-          <thead>
-            <tr>
-              <th>Student ID</th>
-              <th>Name</th>
-              <th>Class</th>
-              <th>Average</th>
-            </tr>
-          </thead>
-
-          <tbody>
-
-            {studentPerformance
-              .slice(0, 10)
-              .map((s, i) => (
-                <tr key={i}>
-
-                  <td>{s.studentId}</td>
-
-                  <td>
-                    <strong>{s.name}</strong>
-                  </td>
-
-                  <td>
-                    <strong>{s.class}</strong>
-                  </td>
-
-                  <td>
-                    <span className="score-badge success">
-                      {s.averageScore}%
-                    </span>
-                  </td>
-
-                </tr>
-              ))}
-
-            {studentPerformance.length === 0 && (
-              <tr>
-                <td
-                  colSpan="4"
-                  className="no-data"
-                >
-                  No student performance data available yet.
-                </td>
-              </tr>
-            )}
-
-          </tbody>
-
-        </table>
-
-      </div>
-
-    </div>
-
-  </div>
-)}
-
-        {/* Messages Tab - Integrated Chat (No Modal) */}
+        {/* Messages Tab */}
         {activeTab === 'messages' && (
           <div className="messages-container">
             <div className="messages-header">
               <div className="messages-tabs">
-                <button className="msg-tab active" onClick={() => {}}>
-                  <i className="fas fa-inbox"></i> Inbox {unreadCount > 0 && <span className="unread-count">{unreadCount}</span>}
-                </button>
-                <button className="msg-tab" onClick={() => {}}>
-                  <i className="fas fa-pen-alt"></i> New Message
-                </button>
+                <button className="msg-tab active"><i className="fas fa-inbox"></i> Inbox {unreadCount > 0 && <span className="unread-count">{unreadCount}</span>}</button>
+                <button className="msg-tab"><i className="fas fa-pen-alt"></i> New Message</button>
               </div>
             </div>
             <div className="inbox-container">
@@ -1044,7 +832,7 @@ const AcademicAdminDashboard = () => {
                 <div className="search-conversations"><i className="fas fa-search"></i><input type="text" placeholder="Search conversations..." /></div>
                 {users.map(user => (
                   <div key={user._id} className={`conversation-item ${selectedUser?._id === user._id ? 'active' : ''}`} onClick={() => handleSelectUser(user)}>
-                    <div className="conv-avatar"><i className={`fas ${user.role === 'teacher' ? 'fa-chalkboard-user' : user.role === 'student' ? 'fa-user-graduate' : 'fa-user'}`}></i></div>
+                    <div className="conv-avatar"><i className={`fas ${user.role === 'teacher' ? 'fa-chalkboard-user' : 'fa-user'}`}></i></div>
                     <div className="conv-info"><div className="conv-name">{user.fullName}</div><div className="conv-role">{user.role}</div></div>
                   </div>
                 ))}
@@ -1078,163 +866,39 @@ const AcademicAdminDashboard = () => {
           </div>
         )}
 
-     {/* Profile Tab */}
-{activeTab === 'profile' && (
-  <div className="profile-card">
-
-    <div className="profile-header">
-
-      <div className="profile-avatar">
-        <i className="fas fa-user-graduate"></i>
-      </div>
-
-      <h2>{userName || 'Academic Admin'}</h2>
-
-      <p className="profile-role">
-        Academic Administrator
-      </p>
-
-    </div>
-
-    <div className="profile-details">
-
-      <div className="detail-item">
-
-        <i className="fas fa-envelope"></i>
-
-        <div>
-          <label>Email Address</label>
-
-          <p>
-            {localStorage?.getItem(
-              'userEmail'
-            ) || 'academic@essa.rw'}
-          </p>
-        </div>
-
-      </div>
-
-      <div className="detail-item">
-
-        <i className="fas fa-shield-alt"></i>
-
-        <div>
-          <label>Role</label>
-          <p>Academic Administrator</p>
-        </div>
-
-      </div>
-
-      <div className="detail-item">
-
-        <i className="fas fa-calendar"></i>
-
-        <div>
-          <label>Member Since</label>
-          <p>2024</p>
-        </div>
-
-      </div>
-
-    </div>
-
-    <button
-      className="change-password-btn"
-      onClick={() => {
-        Swal.fire({
-          title: 'Change Password',
-
-          html: `
-            <input
-              type="password"
-              id="currentPassword"
-              class="swal2-input"
-              placeholder="Current Password"
-            />
-
-            <input
-              type="password"
-              id="newPassword"
-              class="swal2-input"
-              placeholder="New Password"
-            />
-
-            <input
-              type="password"
-              id="confirmPassword"
-              class="swal2-input"
-              placeholder="Confirm New Password"
-            />
-          `,
-
-          confirmButtonText: 'Update',
-          showCancelButton: true,
-
-          preConfirm: () => {
-            const current =
-              document.getElementById(
-                'currentPassword'
-              )?.value;
-
-            const newPass =
-              document.getElementById(
-                'newPassword'
-              )?.value;
-
-            const confirm =
-              document.getElementById(
-                'confirmPassword'
-              )?.value;
-
-            if (
-              !current ||
-              !newPass ||
-              !confirm
-            ) {
-              Swal.showValidationMessage(
-                'Please fill all fields'
-              );
-              return false;
-            }
-
-            if (newPass !== confirm) {
-              Swal.showValidationMessage(
-                'New passwords do not match'
-              );
-              return false;
-            }
-
-            if (newPass.length < 6) {
-              Swal.showValidationMessage(
-                'Password must be at least 6 characters'
-              );
-              return false;
-            }
-
-            return {
-              current,
-              newPassword: newPass,
-            };
-          },
-        }).then((result) => {
-          if (result.isConfirmed) {
-            Swal.fire(
-              'Success',
-              'Password updated successfully!',
-              'success'
-            );
-          }
-        });
-      }}
-    >
-      <i className="fas fa-key"></i>
-      {' '}Change Password
-    </button>
-
-  </div>
-)}
-
-</main>
+        {/* Profile Tab */}
+        {activeTab === 'profile' && (
+          <div className="profile-card">
+            <div className="profile-header">
+              <div className="profile-avatar"><i className="fas fa-user-graduate"></i></div>
+              <h2>{userName}</h2>
+              <p className="profile-role">Academic Administrator</p>
+            </div>
+            <div className="profile-details">
+              <div className="detail-item"><i className="fas fa-envelope"></i><div><label>Email Address</label><p>{localStorage.getItem('userEmail') || 'academic@essa.rw'}</p></div></div>
+              <div className="detail-item"><i className="fas fa-shield-alt"></i><div><label>Role</label><p>Academic Administrator</p></div></div>
+              <div className="detail-item"><i className="fas fa-calendar"></i><div><label>Member Since</label><p>2024</p></div></div>
+            </div>
+            <button className="change-password-btn" onClick={() => {
+              Swal.fire({
+                title: 'Change Password',
+                html: `<input type="password" id="currentPassword" class="swal2-input" placeholder="Current Password"><input type="password" id="newPassword" class="swal2-input" placeholder="New Password"><input type="password" id="confirmPassword" class="swal2-input" placeholder="Confirm New Password">`,
+                confirmButtonText: 'Update',
+                showCancelButton: true,
+                preConfirm: () => {
+                  const current = document.getElementById('currentPassword')?.value;
+                  const newPass = document.getElementById('newPassword')?.value;
+                  const confirm = document.getElementById('confirmPassword')?.value;
+                  if (!current || !newPass || !confirm) return false;
+                  if (newPass !== confirm) { Swal.showValidationMessage('New passwords do not match'); return false; }
+                  if (newPass.length < 6) { Swal.showValidationMessage('Password must be at least 6 characters'); return false; }
+                  return { current, newPassword: newPass };
+                }
+              }).then(result => { if (result.isConfirmed) Swal.fire('Success', 'Password updated successfully!', 'success'); });
+            }}><i className="fas fa-key"></i> Change Password</button>
+          </div>
+        )}
+      </main>
 
       <style>{`
         .academic-admin-dashboard { font-family: 'Inter', sans-serif; background: #f0f2f5; min-height: 100vh; }
@@ -1387,21 +1051,16 @@ const AcademicAdminDashboard = () => {
         .no-conversation-selected { display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100%; color: #999; text-align: center; gap: 15px; }
         .no-conversation-selected i { font-size: 4rem; opacity: 0.3; }
 
-        /* Desktop */
         @media (min-width: 1025px) {
           .sidebar { width: 260px; position: fixed; }
           .main-content { margin-left: 260px; width: calc(100% - 260px); }
           .stats-grid { grid-template-columns: repeat(4, 1fr); }
         }
-
-        /* Tablet */
         @media (max-width: 1024px) and (min-width: 769px) {
           .stats-grid { grid-template-columns: repeat(2, 1fr); }
           .gallery-grid { grid-template-columns: repeat(3, 1fr); }
           .conversations-list { width: 280px; }
         }
-
-        /* Mobile */
         @media (max-width: 768px) {
           .mobile-menu-btn { display: block; }
           .sidebar { width: ${sidebarWidthMobile}; }
