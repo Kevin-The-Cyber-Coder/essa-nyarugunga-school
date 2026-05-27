@@ -4,21 +4,21 @@ import Swal from 'sweetalert2';
 import Navbar from '../components/Navbar';
 import Footer from '../components/Footer';
 
-  // Import all images directly from assets folder
-  import heroBg from '../assets/hero-bg.jpg';
-  import campusImage from '../assets/campus.png';
-  import studentsImage from '../assets/students.png';
-  import classroomImg from '../assets/classroom.png';
-  import libraryImg from '../assets/library.png';
-  import footballImg from '../assets/football.png';
-  import basketballImg from '../assets/basketball.png';
-  import scienceLabImg from '../assets/science-lab.png';
-  import musicImg from '../assets/music.png';
-  import artImg from '../assets/art.png';
-  import graduationImg from '../assets/graduation.png';
-  import debateClubImg from '../assets/debate-club.png';
-  import musicClubImg from '../assets/music-club.png';
-  import sportsClubImg from '../assets/sports-club.png';
+// Import all images directly from assets folder
+import heroBg from '../assets/hero-bg.jpg';
+import campusImage from '../assets/campus.png';
+import studentsImage from '../assets/students.png';
+import classroomImg from '../assets/classroom.png';
+import libraryImg from '../assets/library.png';
+import footballImg from '../assets/football.png';
+import basketballImg from '../assets/basketball.png';
+import scienceLabImg from '../assets/science-lab.png';
+import musicImg from '../assets/music.png';
+import artImg from '../assets/art.png';
+import graduationImg from '../assets/graduation.png';
+import debateClubImg from '../assets/debate-club.png';
+import musicClubImg from '../assets/music-club.png';
+import sportsClubImg from '../assets/sports-club.png';
 
 const HomePage = () => {
   const [counterValues, setCounterValues] = useState({ students: 0, teachers: 0, years: 0 });
@@ -137,7 +137,7 @@ const HomePage = () => {
     <>
       <Navbar />
       
-      {/* Hero Section with local background image */}
+      {/* Hero Section - Centered aligned */}
       <section className="hero" style={{ backgroundImage: `url(${heroBg})` }}>
         <div className="hero-overlay"></div>
         <div className="container hero-content">
@@ -153,7 +153,7 @@ const HomePage = () => {
         </div>
       </section>
 
-      {/* About Section with local campus image */}
+      {/* About Section - Left aligned text, right aligned image */}
       <section className="about">
         <div className="container">
           <div className="section-title">
@@ -192,7 +192,7 @@ const HomePage = () => {
         </div>
       </section>
 
-      {/* Academics Section */}
+      {/* Academics Section - Left aligned text */}
       <section className="academics">
         <div className="container">
           <div className="section-title">
@@ -204,22 +204,27 @@ const HomePage = () => {
             <div className="card">
               <div className="card-icon"><i className="fas fa-code"></i></div>
               <h3>SOFTWARE DEVELOPMENT</h3>
-              <p>A software development class teaches how to design, build, test, and maintain computer programs using programming languages and tools. It also covers problem-solving, algorithms, teamwork, and best practices for creating reliable and efficient software.</p>
+              <p>A software development class teaches how to design, build, test, and maintain computer programs using programming languages and tools.</p>
               <Link to="/academics" className="card-link">Learn More <i className="fas fa-arrow-right"></i></Link>
             </div>
             <div className="card">
               <div className="card-icon"><i className="fas fa-calculator"></i></div>
               <h3>ACCOUNTING</h3>
-              <p>An accounting class teaches how to record, organize, and analyze financial transactions for individuals or businesses. It also covers budgeting, financial statements, and principles used to track income, expenses, and overall financial health.</p>
+              <p>An accounting class teaches how to record, organize, and analyze financial transactions for individuals or businesses.</p>
               <Link to="/academics" className="card-link">Learn More <i className="fas fa-arrow-right"></i></Link>
             </div>
             <div className="card">
               <div className="card-icon"><i className="fas fa-microchip"></i></div>
-              <h3>COMPUTER SYSTEMS & ARCHITECTURE</h3>
-              <p>A computer systems and architecture class explains how computer hardware and software interact, including CPUs, memory, and input/output systems. It also covers how data is processed, stored, and optimized to improve performance and efficiency.</p>
+              <h3>COMPUTER SYSTEMS</h3>
+              <p>A computer systems and architecture class explains how computer hardware and software interact.</p>
               <Link to="/academics" className="card-link">Learn More <i className="fas fa-arrow-right"></i></Link>
             </div>
-
+            <div className="card">
+              <div className="card-icon"><i className="fas fa-hotel"></i></div>
+              <h3>TOURISM</h3>
+              <p>Learn about the travel and hospitality industry, customer service, and cultural awareness.</p>
+              <Link to="/academics" className="card-link">Learn More <i className="fas fa-arrow-right"></i></Link>
+            </div>
           </div>
           <div className="trades-btn-container">
             <Link to="/academics" className="btn-trades"><i className="fas fa-th-large"></i> View All Trades & Programs <i className="fas fa-arrow-right"></i></Link>
@@ -227,7 +232,7 @@ const HomePage = () => {
         </div>
       </section>
 
-      {/* Student Life Section */}
+      {/* Student Life Section - Left aligned content */}
       <section className="student-life">
         <div className="container">
           <div className="section-title">
@@ -273,7 +278,7 @@ const HomePage = () => {
         </div>
       </section>
 
-      {/* Gallery Section */}
+      {/* Gallery Section - Centered grid */}
       <section className="gallery">
         <div className="container">
           <div className="section-title">
@@ -305,7 +310,7 @@ const HomePage = () => {
         </div>
       </section>
 
-      {/* Admissions Section */}
+      {/* Admissions Section - Left aligned text, right aligned image */}
       <section className="admissions">
         <div className="container">
           <div className="section-title">
@@ -346,6 +351,304 @@ const HomePage = () => {
       </section>
 
       <Footer />
+
+      {/* Add this CSS to your main CSS file or as a style tag */}
+      <style>{`
+        /* Section alignment fixes */
+        .about-grid,
+        .admissions-grid {
+          display: grid;
+          grid-template-columns: 1fr 1fr;
+          gap: 3rem;
+          align-items: center;
+        }
+        
+        .about-text,
+        .admissions-info {
+          text-align: left;
+        }
+        
+        .features {
+          display: grid;
+          grid-template-columns: repeat(2, 1fr);
+          gap: 0.8rem;
+          margin: 1.5rem 0;
+        }
+        
+        .features div {
+          display: flex;
+          align-items: center;
+          gap: 8px;
+        }
+        
+        .stats {
+          display: flex;
+          gap: 2rem;
+          margin-top: 2rem;
+          flex-wrap: wrap;
+        }
+        
+        .stat {
+          text-align: center;
+          flex: 1;
+          min-width: 100px;
+        }
+        
+        .stat h3 {
+          font-size: 1.8rem;
+          color: #1e3c72;
+          margin-bottom: 0.3rem;
+        }
+        
+        /* Cards alignment */
+        .cards {
+          display: grid;
+          grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+          gap: 1.5rem;
+        }
+        
+        .card {
+          text-align: left;
+          padding: 1.5rem;
+          background: #f8f9fa;
+          border-radius: 12px;
+          transition: transform 0.3s;
+        }
+        
+        .card:hover {
+          transform: translateY(-5px);
+        }
+        
+        .card-icon i {
+          font-size: 2rem;
+          color: #1e3c72;
+          margin-bottom: 1rem;
+        }
+        
+        .card h3 {
+          font-size: 1.1rem;
+          margin-bottom: 0.8rem;
+          color: #1e3c72;
+        }
+        
+        .card p {
+          font-size: 0.85rem;
+          color: #666;
+          line-height: 1.5;
+          margin-bottom: 1rem;
+        }
+        
+        .card-link {
+          display: inline-flex;
+          align-items: center;
+          gap: 5px;
+          color: #ffc107;
+          text-decoration: none;
+          font-weight: 500;
+          transition: gap 0.3s;
+        }
+        
+        .card-link:hover {
+          gap: 10px;
+        }
+        
+        /* Clubs grid */
+        .clubs-grid {
+          display: grid;
+          grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+          gap: 1.5rem;
+        }
+        
+        .club-card {
+          background: white;
+          border-radius: 16px;
+          overflow: hidden;
+          box-shadow: 0 3px 10px rgba(0,0,0,0.08);
+          text-align: left;
+        }
+        
+        .club-card h4 {
+          padding: 1rem 1rem 0.5rem;
+          margin: 0;
+        }
+        
+        .club-card p {
+          padding: 0 1rem;
+          font-size: 0.85rem;
+          color: #666;
+        }
+        
+        .club-details, .club-stats {
+          padding: 0.5rem 1rem;
+          display: flex;
+          gap: 1rem;
+          flex-wrap: wrap;
+          font-size: 0.75rem;
+        }
+        
+        .club-real-image {
+          width: 100%;
+          height: 180px;
+          object-fit: cover;
+        }
+        
+        .join-btn {
+          margin: 1rem;
+          width: calc(100% - 2rem);
+          background: #1e3c72;
+          color: white;
+          border: none;
+          padding: 10px;
+          border-radius: 8px;
+          cursor: pointer;
+        }
+        
+        .join-btn:hover {
+          background: #ffc107;
+          color: #1e3c72;
+        }
+        
+        /* Spiritual grid */
+        .spiritual-grid {
+          display: grid;
+          grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+          gap: 1.2rem;
+        }
+        
+        .spiritual-card {
+          background: white;
+          padding: 1.2rem;
+          border-radius: 12px;
+          text-align: left;
+          border-left: 3px solid #ffc107;
+        }
+        
+        .spiritual-card i {
+          font-size: 1.5rem;
+          color: #1e3c72;
+          margin-bottom: 0.5rem;
+        }
+        
+        /* Gallery */
+        .gallery-filters {
+          display: flex;
+          justify-content: center;
+          gap: 0.8rem;
+          margin-bottom: 2rem;
+          flex-wrap: wrap;
+        }
+        
+        .filter-btn {
+          padding: 8px 20px;
+          border: 1px solid #1e3c72;
+          background: transparent;
+          border-radius: 30px;
+          cursor: pointer;
+          transition: 0.3s;
+        }
+        
+        .filter-btn.active,
+        .filter-btn:hover {
+          background: #1e3c72;
+          color: white;
+        }
+        
+        .gallery-grid {
+          display: grid;
+          grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+          gap: 1.2rem;
+        }
+        
+        .gallery-item {
+          position: relative;
+          border-radius: 12px;
+          overflow: hidden;
+          cursor: pointer;
+          aspect-ratio: 4/3;
+        }
+        
+        .gallery-real-image {
+          width: 100%;
+          height: 100%;
+          object-fit: cover;
+          transition: transform 0.3s;
+        }
+        
+        .gallery-item:hover .gallery-real-image {
+          transform: scale(1.05);
+        }
+        
+        .gallery-overlay {
+          position: absolute;
+          bottom: 0;
+          left: 0;
+          right: 0;
+          background: linear-gradient(transparent, rgba(0,0,0,0.7));
+          color: white;
+          padding: 1rem;
+          transform: translateY(100%);
+          transition: transform 0.3s;
+          text-align: center;
+        }
+        
+        .gallery-item:hover .gallery-overlay {
+          transform: translateY(0);
+        }
+        
+        .gallery-btn-container {
+          text-align: center;
+          margin-top: 2rem;
+        }
+        
+        /* Info boxes */
+        .info-boxes {
+          display: grid;
+          grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+          gap: 1rem;
+          margin: 1.5rem 0;
+        }
+        
+        .info-box {
+          text-align: center;
+          padding: 1rem;
+          background: #f8f9fa;
+          border-radius: 12px;
+        }
+        
+        .admissions-buttons {
+          display: flex;
+          gap: 1rem;
+          flex-wrap: wrap;
+        }
+        
+        /* Responsive */
+        @media (max-width: 768px) {
+          .about-grid,
+          .admissions-grid {
+            grid-template-columns: 1fr;
+          }
+          
+          .features {
+            grid-template-columns: 1fr;
+          }
+          
+          .stats {
+            justify-content: center;
+          }
+          
+          .cards {
+            grid-template-columns: 1fr;
+          }
+          
+          .clubs-grid {
+            grid-template-columns: 1fr;
+          }
+          
+          .spiritual-grid {
+            grid-template-columns: 1fr;
+          }
+        }
+      `}</style>
     </>
   );
 };
