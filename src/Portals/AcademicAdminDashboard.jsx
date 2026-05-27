@@ -29,6 +29,10 @@ const AcademicAdminDashboard = () => {
   const [selectedChatUser, setSelectedChatUser] = useState(null);
   const [unreadCount, setUnreadCount] = useState(0);
   const [socket, setSocket] = useState(null);
+  const [users, setUsers] = useState([]);
+  const [messages, setMessages] = useState([]);
+  const [selectedUser, setSelectedUser] = useState(null);
+  const [messageText, setMessageText] = useState('');
   
   const navigate = useNavigate();
   const getToken = () => localStorage.getItem('portalToken');
@@ -77,6 +81,9 @@ const AcademicAdminDashboard = () => {
     if (userId) newSocket.emit('join', userId);
     newSocket.on('newMessage', () => {
       fetchUnreadCount();
+      if (activeTab === 'messages') {
+        fetchUsers();
+      }
     });
     return () => newSocket.disconnect();
   }, []);
@@ -92,6 +99,7 @@ const AcademicAdminDashboard = () => {
       setUserName(name || 'Academic Admin');
       fetchAllData();
       fetchUnreadCount();
+      fetchUsers();
     }
   }, [navigate]);
 
@@ -123,6 +131,24 @@ const AcademicAdminDashboard = () => {
     }
   };
 
+  const fetchUsers = async () => {
+    try {
+      const data = await apiRequest('/messages/users').catch(() => []);
+      setUsers(Array.isArray(data) ? data : []);
+    } catch (error) {
+      console.error('Error fetching users:', error);
+    }
+  };
+
+  const fetchMessages = async (userId) => {
+    try {
+      const data = await apiRequest(`/messages/user/${userId}`).catch(() => []);
+      setMessages(Array.isArray(data) ? data : []);
+    } catch (error) {
+      console.error('Error fetching messages:', error);
+    }
+  };
+
   const fetchUnreadCount = async () => {
     try {
       const data = await apiRequest('/messages/unread/count');
@@ -132,17 +158,31 @@ const AcademicAdminDashboard = () => {
     }
   };
 
-  const handleOpenChat = (user = null) => {
-    if (user) {
-      setSelectedChatUser(user);
+  const handleSendMessage = async () => {
+    if (!messageText.trim() || !selectedUser) return;
+    
+    try {
+      const data = await apiRequest('/messages/send', {
+        method: 'POST',
+        body: JSON.stringify({ receiverId: selectedUser._id, content: messageText })
+      });
+      if (data.success) {
+        setMessages([...messages, data.message]);
+        setMessageText('');
+        if (socket) {
+          socket.emit('sendMessage', { receiverId: selectedUser._id, ...data.message });
+        }
+        fetchUnreadCount();
+      }
+    } catch (error) {
+      console.error('Error sending message:', error);
+      Swal.fire('Error', 'Failed to send message', 'error');
     }
-    setIsChatModalOpen(true);
   };
 
-  const handleCloseChat = () => {
-    setIsChatModalOpen(false);
-    setSelectedChatUser(null);
-    fetchUnreadCount();
+  const handleSelectUser = (user) => {
+    setSelectedUser(user);
+    fetchMessages(user._id);
   };
 
   // ==================== TEACHER MANAGEMENT ====================
@@ -167,11 +207,6 @@ const AcademicAdminDashboard = () => {
         const email = document.getElementById('email')?.value;
         if (!fullName || !email) {
           Swal.showValidationMessage('Please fill required fields');
-          return false;
-        }
-        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-        if (!emailRegex.test(email)) {
-          Swal.showValidationMessage('Please enter a valid email address');
           return false;
         }
         return {
@@ -499,6 +534,7 @@ const AcademicAdminDashboard = () => {
     { id: 'gallery', label: 'Gallery', icon: 'fas fa-images', color: '#e74c3c' },
     { id: 'announcements', label: 'Announcements', icon: 'fas fa-bullhorn', color: '#1abc9c' },
     { id: 'performance', label: 'Performance', icon: 'fas fa-chart-bar', color: '#1abc9c' },
+    { id: 'messages', label: 'Messages', icon: 'fas fa-comments', color: '#9b59b6' },
     { id: 'profile', label: 'Profile', icon: 'fas fa-user-circle', color: '#34495e' }
   ];
 
@@ -552,6 +588,9 @@ const AcademicAdminDashboard = () => {
               >
                 <i className={item.icon} style={{ color: item.color }}></i>
                 {!sidebarCollapsed && <span>{item.label}</span>}
+                {item.id === 'messages' && unreadCount > 0 && !sidebarCollapsed && (
+                  <span className="nav-badge">{unreadCount}</span>
+                )}
               </button>
             ))}
           </nav>
@@ -573,10 +612,6 @@ const AcademicAdminDashboard = () => {
             <h2>Academic Admin Dashboard</h2>
           </div>
           <div className="top-bar-right">
-            <div className="notification-bell" onClick={() => handleOpenChat()}>
-              <i className="fas fa-envelope"></i>
-              {unreadCount > 0 && <span className="notification-badge">{unreadCount}</span>}
-            </div>
             <div className="user-menu">
               <div className="user-avatar-small"><i className="fas fa-user-graduate"></i></div>
               <div className="user-details"><span className="user-name">{userName}</span><span className="user-role-badge">Academic Admin</span></div>
@@ -608,37 +643,25 @@ const AcademicAdminDashboard = () => {
           </div>
         )}
 
-        {/* Teachers Tab - FIXED */}
+        {/* Teachers Tab */}
         {activeTab === 'teachers' && (
           <div className="data-card">
             <div className="card-header"><h2><i className="fas fa-chalkboard-user"></i> Teachers</h2><button onClick={handleCreateTeacher} className="btn-primary-sm"><i className="fas fa-plus"></i> Add Teacher</button></div>
             <div className="table-responsive">
               <table className="data-table">
                 <thead>
-                  <tr>
-                    <th>Teacher</th><th>Email</th><th>Subject</th><th>Phone</th><th>Actions</th>
-                  </tr>
+                  <tr><th>Teacher</th><th>Email</th><th>Subject</th><th>Phone</th><th>Actions</th></tr>
                 </thead>
                 <tbody>
-                  {teachers.map(t => (
-                    <tr key={t._id}>
-                      <td><strong>{t.fullName}</strong></td>
-                      <td>{t.email}</td>
-                      <td>{t.subject || '-'}</td>
-                      <td>{t.phone || '-'}</td>
-                      <td><button onClick={() => handleDeleteTeacher(t)} className="delete-btn-sm"><i className="fas fa-trash"></i></button></td>
-                    </tr>
-                  ))}
-                  {teachers.length === 0 && (
-                    <tr><td colSpan="5" className="no-data">No teachers yet. Click "Add Teacher" to create one.</td></tr>
-                  )}
+                  {teachers.map(t => (<tr key={t._id}><td><strong>{t.fullName}</strong></td><td>{t.email}</td><td>{t.subject || '-'}</td><td>{t.phone || '-'}</td>}<button onClick={() => handleDeleteTeacher(t)} className="delete-btn-sm"><i className="fas fa-trash"></i></button></td></tr>))}
+                  {teachers.length === 0 && <tr><td colSpan="5" className="no-data">No teachers yet. Click "Add Teacher" to create one.</td></tr>}
                 </tbody>
               </table>
             </div>
           </div>
         )}
 
-        {/* Classes Tab - FIXED */}
+        {/* Classes Tab */}
         {activeTab === 'classes' && (
           <div className="data-card">
             <div className="card-header"><h2><i className="fas fa-school"></i> Classes</h2>
@@ -646,19 +669,9 @@ const AcademicAdminDashboard = () => {
             </div>
             <div className="table-responsive">
               <table className="data-table">
-                <thead>
-                  <tr><th>Grade</th><th>Class Name</th><th>Academic Year</th><th>Teacher</th><th>Actions</th></tr>
-                </thead>
+                <thead><tr><th>Grade</th><th>Class Name</th><th>Academic Year</th><th>Teacher</th><th>Actions</th></tr></thead>
                 <tbody>
-                  {classes.map(c => (
-                    <tr key={c._id}>
-                      <td><strong>{c.grade}</strong></td>
-                      <td>{c.className}</td>
-                      <td>{c.academicYear}</td>
-                      <td>{c.teacherId && typeof c.teacherId === 'object' && c.teacherId.fullName ? <span className="assigned-badge"><i className="fas fa-chalkboard-user"></i> {c.teacherId.fullName}</span> : <span className="unassigned-badge">Not Assigned</span>}</td>
-                      <td><div className="action-buttons"><button onClick={() => handleAssignTeacher(c)} className="assign-btn"><i className="fas fa-user-plus"></i> Assign</button><button onClick={() => handleDeleteClass(c)} className="delete-btn-sm"><i className="fas fa-trash"></i></button></div></td>
-                    </tr>
-                  ))}
+                  {classes.map(c => (<tr key={c._id}><td><strong>{c.grade}</strong></td>}<td>{c.className}</td><td>{c.academicYear}</td><td>{c.teacherId && typeof c.teacherId === 'object' && c.teacherId.fullName ? <span className="assigned-badge"><i className="fas fa-chalkboard-user"></i> {c.teacherId.fullName}</span> : <span className="unassigned-badge">Not Assigned</span>}</td><td><div className="action-buttons"><button onClick={() => handleAssignTeacher(c)} className="assign-btn"><i className="fas fa-user-plus"></i> Assign</button><button onClick={() => handleDeleteClass(c)} className="delete-btn-sm"><i className="fas fa-trash"></i></button></div></td></tr>))}
                   {classes.length === 0 && <tr><td colSpan="5" className="no-data">No classes yet. Click "Create Class" to create one.</td></tr>}
                 </tbody>
               </table>
@@ -694,134 +707,70 @@ const AcademicAdminDashboard = () => {
           </div>
         )}
 
-       {/* Performance Tab */}
-{activeTab === 'performance' && (
-  <div>
+        {/* Performance Tab */}
+        {activeTab === 'performance' && (
+          <div>
+            <div className="data-card"><h2><i className="fas fa-chart-line"></i> Class Performance</h2>
+              <div className="table-responsive"><table className="data-table"><thead><tr><th>Class</th><th>Teacher</th><th>Students</th><th>Avg Score</th></tr></thead><tbody>{classPerformance.map((c, i) => (<tr key={i}><td><strong>{c.className}</strong></td>}<c.teacher} </tr>))}</tbody></table></div>
+            </div>
+            <div className="data-card"><h2><i className="fas fa-trophy"></i> Top Students</h2>
+              <div className="table-responsive"><table className="data-table"><thead><tr><th>Student ID</th><th>Name</th><th>Class</th><th>Average</th></tr></thead><tbody>{studentPerformance.slice(0, 10).map((s, i) => (<tr key={i}><td>{s.studentId}</td>}<strong>{s.name}</strong> <td><strong>{s.class}</strong></td> <td><span className="score-badge success">{s.averageScore}%</span></td></tr>))}</tbody></table></div>
+            </div>
+          </div>
+        )}
 
-    {/* Class Performance */}
-    <div className="data-card">
+        {/* Messages Tab - Integrated Chat (No Modal) */}
+        {activeTab === 'messages' && (
+          <div className="messages-container">
+            <div className="messages-header">
+              <div className="messages-tabs">
+                <button className="msg-tab active" onClick={() => {}}>
+                  <i className="fas fa-inbox"></i> Inbox {unreadCount > 0 && <span className="unread-count">{unreadCount}</span>}
+                </button>
+                <button className="msg-tab" onClick={() => {}}>
+                  <i className="fas fa-pen-alt"></i> New Message
+                </button>
+              </div>
+            </div>
+            <div className="inbox-container">
+              <div className="conversations-list">
+                <div className="search-conversations"><i className="fas fa-search"></i><input type="text" placeholder="Search conversations..." /></div>
+                {users.map(user => (
+                  <div key={user._id} className={`conversation-item ${selectedUser?._id === user._id ? 'active' : ''}`} onClick={() => handleSelectUser(user)}>
+                    <div className="conv-avatar"><i className={`fas ${user.role === 'teacher' ? 'fa-chalkboard-user' : user.role === 'student' ? 'fa-user-graduate' : 'fa-user'}`}></i></div>
+                    <div className="conv-info"><div className="conv-name">{user.fullName}</div><div className="conv-role">{user.role}</div></div>
+                  </div>
+                ))}
+                {users.length === 0 && <div className="no-conversations">No conversations yet</div>}
+              </div>
+              <div className="messages-area">
+                {selectedUser ? (
+                  <>
+                    <div className="messages-header-info">
+                      <div className="conv-avatar-large"><i className="fas fa-user"></i></div>
+                      <div><h3>{selectedUser.fullName}</h3><p>{selectedUser.role}</p></div>
+                    </div>
+                    <div className="messages-list">
+                      {messages.map(msg => (
+                        <div key={msg._id} className={`message-bubble ${msg.senderId === localStorage.getItem('userId') ? 'sent' : 'received'}`}>
+                          <div className="message-text">{msg.content}</div>
+                          <div className="message-time">{new Date(msg.createdAt).toLocaleTimeString()}</div>
+                        </div>
+                      ))}
+                    </div>
+                    <div className="message-input-area">
+                      <textarea value={messageText} onChange={(e) => setMessageText(e.target.value)} placeholder="Type your message..." onKeyPress={(e) => e.key === 'Enter' && handleSendMessage()}></textarea>
+                      <button onClick={handleSendMessage}><i className="fas fa-paper-plane"></i></button>
+                    </div>
+                  </>
+                ) : (
+                  <div className="no-conversation-selected"><i className="fas fa-comments"></i><h3>No conversation selected</h3><p>Select a user to start messaging</p></div>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
 
-      <h2>
-        <i className="fas fa-chart-line"></i>
-        {' '}Class Performance
-      </h2>
-
-      <div className="table-responsive">
-        <table className="data-table">
-
-          <thead>
-            <tr>
-              <th>Class</th>
-              <th>Teacher</th>
-              <th>Students</th>
-              <th>Avg Score</th>
-            </tr>
-          </thead>
-
-          <tbody>
-
-            {classPerformance.map((c, i) => (
-              <tr key={i}>
-                <td>
-                  <strong>{c.className}</strong>
-                </td>
-
-                <td>{c.teacher}</td>
-
-                <td>{c.studentCount}</td>
-
-                <td>
-                  <span className="score-badge">
-                    {c.averageScore}%
-                  </span>
-                </td>
-              </tr>
-            ))}
-
-            {classPerformance.length === 0 && (
-              <tr>
-                <td
-                  colSpan="4"
-                  className="no-data"
-                >
-                  No performance data available yet.
-                </td>
-              </tr>
-            )}
-
-          </tbody>
-
-        </table>
-      </div>
-
-    </div>
-
-    {/* Top Students */}
-    <div className="data-card">
-
-      <h2>
-        <i className="fas fa-trophy"></i>
-        {' '}Top Students
-      </h2>
-
-      <div className="table-responsive">
-        <table className="data-table">
-
-          <thead>
-            <tr>
-              <th>Student ID</th>
-              <th>Name</th>
-              <th>Class</th>
-              <th>Average</th>
-            </tr>
-          </thead>
-
-          <tbody>
-
-            {studentPerformance
-              .slice(0, 10)
-              .map((s, i) => (
-                <tr key={i}>
-
-                  <td>{s.studentId}</td>
-
-                  <td>
-                    <strong>{s.name}</strong>
-                  </td>
-
-                  <td>
-                    <strong>{s.class}</strong>
-                  </td>
-
-                  <td>
-                    <span className="score-badge success">
-                      {s.averageScore}%
-                    </span>
-                  </td>
-
-                </tr>
-              ))}
-
-            {studentPerformance.length === 0 && (
-              <tr>
-                <td
-                  colSpan="4"
-                  className="no-data"
-                >
-                  No student performance data available yet.
-                </td>
-              </tr>
-            )}
-
-          </tbody>
-
-        </table>
-      </div>
-
-    </div>
-
-  </div>
-)}
         {/* Profile Tab */}
         {activeTab === 'profile' && (
           <div className="profile-card"><div className="profile-header"><div className="profile-avatar"><i className="fas fa-user-graduate"></i></div><h2>{userName}</h2><p className="profile-role">Academic Administrator</p></div>
@@ -832,9 +781,6 @@ const AcademicAdminDashboard = () => {
           </div>
         )}
       </main>
-
-      {/* Chat Modal */}
-      <ChatModal isOpen={isChatModalOpen} onClose={handleCloseChat} recipient={selectedChatUser} onMessageSent={fetchUnreadCount} />
 
       <style>{`
         .academic-admin-dashboard { font-family: 'Inter', sans-serif; background: #f0f2f5; min-height: 100vh; }
@@ -860,10 +806,11 @@ const AcademicAdminDashboard = () => {
         .sidebar-nav-wrapper::-webkit-scrollbar-track { background: rgba(255,255,255,0.1); }
         .sidebar-nav-wrapper::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.3); border-radius: 4px; }
         .sidebar-nav { padding: 0.5rem 0; }
-        .nav-item { display: flex; align-items: center; gap: 12px; width: 100%; padding: 12px 20px; background: transparent; border: none; color: rgba(255,255,255,0.8); cursor: pointer; font-size: 0.9rem; transition: all 0.3s; }
+        .nav-item { display: flex; align-items: center; gap: 12px; width: 100%; padding: 12px 20px; background: transparent; border: none; color: rgba(255,255,255,0.8); cursor: pointer; font-size: 0.9rem; transition: all 0.3s; position: relative; }
         .nav-item i { width: 20px; }
         .nav-item:hover { background: rgba(255,255,255,0.1); color: #ffc107; }
         .nav-item.active { background: rgba(255,255,255,0.15); color: #ffc107; border-right: 3px solid #ffc107; }
+        .nav-badge { position: absolute; right: 20px; background: #e74c3c; color: white; border-radius: 50%; padding: 2px 6px; font-size: 0.7rem; min-width: 18px; text-align: center; }
         .sidebar-footer { padding: 1rem; border-top: 1px solid rgba(255,255,255,0.1); flex-shrink: 0; }
         .logout-btn { display: flex; align-items: center; gap: 12px; width: 100%; padding: 12px; background: #e74c3c; border: none; border-radius: 8px; color: white; cursor: pointer; }
         .logout-btn:hover { opacity: 0.9; transform: translateY(-2px); }
@@ -950,7 +897,43 @@ const AcademicAdminDashboard = () => {
         .action-buttons { display: flex; gap: 8px; }
         .assign-btn { background: #f39c12; color: white; border: none; padding: 4px 8px; border-radius: 4px; cursor: pointer; font-size: 0.7rem; }
 
-        /* Desktop - All Tabs Visible */
+        /* Messages Tab Styles */
+        .messages-container { background: white; border-radius: 16px; overflow: hidden; height: calc(100vh - 180px); min-height: 500px; display: flex; flex-direction: column; }
+        .messages-header { padding: 15px 20px; border-bottom: 1px solid #e0e0e0; background: white; }
+        .messages-tabs { display: flex; gap: 10px; flex-wrap: wrap; }
+        .msg-tab { padding: 8px 20px; background: #f0f2f5; border: none; border-radius: 30px; cursor: pointer; font-weight: 500; transition: all 0.3s; display: flex; align-items: center; gap: 8px; }
+        .msg-tab.active { background: #1a3a5c; color: white; }
+        .msg-tab .unread-count { background: #e74c3c; color: white; border-radius: 50%; padding: 2px 6px; font-size: 0.7rem; margin-left: 5px; }
+        .inbox-container { display: flex; flex: 1; overflow: hidden; }
+        .conversations-list { width: 320px; border-right: 1px solid #e0e0e0; overflow-y: auto; background: #f8f9fa; flex-shrink: 0; }
+        .search-conversations { padding: 15px; position: relative; border-bottom: 1px solid #e0e0e0; }
+        .search-conversations i { position: absolute; left: 25px; top: 50%; transform: translateY(-50%); color: #999; }
+        .search-conversations input { width: 100%; padding: 8px 8px 8px 35px; border: 1px solid #ddd; border-radius: 20px; font-size: 0.85rem; }
+        .conversation-item { display: flex; align-items: center; gap: 12px; padding: 12px 15px; cursor: pointer; transition: background 0.2s; border-bottom: 1px solid #eee; }
+        .conversation-item:hover { background: #e8f0fe; }
+        .conversation-item.active { background: #e3f2fd; border-left: 3px solid #ffc107; }
+        .conv-avatar { width: 40px; height: 40px; background: #1a3a5c; border-radius: 50%; display: flex; align-items: center; justify-content: center; color: white; flex-shrink: 0; }
+        .conv-info { flex: 1; min-width: 0; }
+        .conv-name { font-weight: 600; font-size: 0.85rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .conv-role { font-size: 0.7rem; color: #ffc107; }
+        .no-conversations { text-align: center; padding: 40px; color: #999; }
+        .messages-area { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
+        .messages-header-info { display: flex; align-items: center; gap: 15px; padding: 15px; border-bottom: 1px solid #e0e0e0; background: white; }
+        .conv-avatar-large { width: 50px; height: 50px; background: #1a3a5c; border-radius: 50%; display: flex; align-items: center; justify-content: center; color: white; }
+        .messages-list { flex: 1; overflow-y: auto; padding: 20px; display: flex; flex-direction: column; gap: 15px; background: #f8f9fa; }
+        .message-bubble { max-width: 70%; padding: 10px 15px; border-radius: 18px; }
+        .message-bubble.sent { align-self: flex-end; background: #1a3a5c; color: white; border-bottom-right-radius: 4px; }
+        .message-bubble.received { align-self: flex-start; background: white; color: #333; border-bottom-left-radius: 4px; box-shadow: 0 1px 2px rgba(0,0,0,0.05); }
+        .message-time { font-size: 0.6rem; opacity: 0.7; margin-top: 5px; text-align: right; }
+        .message-input-area { display: flex; gap: 10px; padding: 15px; border-top: 1px solid #e0e0e0; background: white; }
+        .message-input-area textarea { flex: 1; padding: 10px; border: 1px solid #ddd; border-radius: 20px; resize: none; font-family: inherit; font-size: 0.85rem; }
+        .message-input-area textarea:focus { outline: none; border-color: #1a3a5c; }
+        .message-input-area button { width: 45px; height: 45px; background: #1a3a5c; color: white; border: none; border-radius: 50%; cursor: pointer; transition: all 0.3s; }
+        .message-input-area button:hover { background: #ffc107; color: #1a3a5c; transform: scale(1.05); }
+        .no-conversation-selected { display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100%; color: #999; text-align: center; gap: 15px; }
+        .no-conversation-selected i { font-size: 4rem; opacity: 0.3; }
+
+        /* Desktop */
         @media (min-width: 1025px) {
           .sidebar { width: 260px; position: fixed; }
           .main-content { margin-left: 260px; width: calc(100% - 260px); }
@@ -961,6 +944,7 @@ const AcademicAdminDashboard = () => {
         @media (max-width: 1024px) and (min-width: 769px) {
           .stats-grid { grid-template-columns: repeat(2, 1fr); }
           .gallery-grid { grid-template-columns: repeat(3, 1fr); }
+          .conversations-list { width: 280px; }
         }
 
         /* Mobile */
@@ -976,6 +960,9 @@ const AcademicAdminDashboard = () => {
           .card-header { flex-direction: column; align-items: flex-start; }
           .news-item { flex-direction: column; }
           .news-meta { flex-wrap: wrap; }
+          .inbox-container { flex-direction: column; }
+          .conversations-list { width: 100%; max-height: 200px; border-right: none; border-bottom: 1px solid #e0e0e0; }
+          .message-bubble { max-width: 85%; }
         }
       `}</style>
     </div>
