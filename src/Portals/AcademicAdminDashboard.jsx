@@ -771,16 +771,163 @@ const AcademicAdminDashboard = () => {
           </div>
         )}
 
-        {/* Profile Tab */}
-        {activeTab === 'profile' && (
-          <div className="profile-card"><div className="profile-header"><div className="profile-avatar"><i className="fas fa-user-graduate"></i></div><h2>{userName}</h2><p className="profile-role">Academic Administrator</p></div>
-            <div className="profile-details"><div className="detail-item"><i className="fas fa-envelope"></i><div><label>Email Address</label><p>{localStorage.getItem('userEmail') || 'academic@essa.rw'}</p></div></div>
-            <div className="detail-item"><i className="fas fa-shield-alt"></i><div><label>Role</label><p>Academic Administrator</p></div></div>
-            <div className="detail-item"><i className="fas fa-calendar"></i><div><label>Member Since</label><p>2024</p></div></div></div>
-            <button className="change-password-btn" onClick={() => { Swal.fire({ title: 'Change Password', html: `<input type="password" id="currentPassword" class="swal2-input" placeholder="Current Password"><input type="password" id="newPassword" class="swal2-input" placeholder="New Password"><input type="password" id="confirmPassword" class="swal2-input" placeholder="Confirm New Password">`, confirmButtonText: 'Update', showCancelButton: true, preConfirm: () => { const current = document.getElementById('currentPassword')?.value; const newPass = document.getElementById('newPassword')?.value; const confirm = document.getElementById('confirmPassword')?.value; if (!current || !newPass || !confirm) { Swal.showValidationMessage('Please fill all fields'); return false; } if (newPass !== confirm) { Swal.showValidationMessage('New passwords do not match'); return false; } if (newPass.length < 6) { Swal.showValidationMessage('Password must be at least 6 characters'); return false; } return { current, newPassword: newPass }; } }).then(result => { if (result.isConfirmed) Swal.fire('Success', 'Password updated successfully!', 'success'); }); }}><i className="fas fa-key"></i> Change Password</button>
-          </div>
-        )}
-      </main>
+     {/* Profile Tab */}
+{activeTab === 'profile' && (
+  <div className="profile-card">
+
+    <div className="profile-header">
+
+      <div className="profile-avatar">
+        <i className="fas fa-user-graduate"></i>
+      </div>
+
+      <h2>{userName || 'Academic Admin'}</h2>
+
+      <p className="profile-role">
+        Academic Administrator
+      </p>
+
+    </div>
+
+    <div className="profile-details">
+
+      <div className="detail-item">
+
+        <i className="fas fa-envelope"></i>
+
+        <div>
+          <label>Email Address</label>
+
+          <p>
+            {localStorage?.getItem(
+              'userEmail'
+            ) || 'academic@essa.rw'}
+          </p>
+        </div>
+
+      </div>
+
+      <div className="detail-item">
+
+        <i className="fas fa-shield-alt"></i>
+
+        <div>
+          <label>Role</label>
+          <p>Academic Administrator</p>
+        </div>
+
+      </div>
+
+      <div className="detail-item">
+
+        <i className="fas fa-calendar"></i>
+
+        <div>
+          <label>Member Since</label>
+          <p>2024</p>
+        </div>
+
+      </div>
+
+    </div>
+
+    <button
+      className="change-password-btn"
+      onClick={() => {
+        Swal.fire({
+          title: 'Change Password',
+
+          html: `
+            <input
+              type="password"
+              id="currentPassword"
+              class="swal2-input"
+              placeholder="Current Password"
+            />
+
+            <input
+              type="password"
+              id="newPassword"
+              class="swal2-input"
+              placeholder="New Password"
+            />
+
+            <input
+              type="password"
+              id="confirmPassword"
+              class="swal2-input"
+              placeholder="Confirm New Password"
+            />
+          `,
+
+          confirmButtonText: 'Update',
+          showCancelButton: true,
+
+          preConfirm: () => {
+            const current =
+              document.getElementById(
+                'currentPassword'
+              )?.value;
+
+            const newPass =
+              document.getElementById(
+                'newPassword'
+              )?.value;
+
+            const confirm =
+              document.getElementById(
+                'confirmPassword'
+              )?.value;
+
+            if (
+              !current ||
+              !newPass ||
+              !confirm
+            ) {
+              Swal.showValidationMessage(
+                'Please fill all fields'
+              );
+              return false;
+            }
+
+            if (newPass !== confirm) {
+              Swal.showValidationMessage(
+                'New passwords do not match'
+              );
+              return false;
+            }
+
+            if (newPass.length < 6) {
+              Swal.showValidationMessage(
+                'Password must be at least 6 characters'
+              );
+              return false;
+            }
+
+            return {
+              current,
+              newPassword: newPass,
+            };
+          },
+        }).then((result) => {
+          if (result.isConfirmed) {
+            Swal.fire(
+              'Success',
+              'Password updated successfully!',
+              'success'
+            );
+          }
+        });
+      }}
+    >
+      <i className="fas fa-key"></i>
+      {' '}Change Password
+    </button>
+
+  </div>
+)}
+
+</main>
 
       <style>{`
         .academic-admin-dashboard { font-family: 'Inter', sans-serif; background: #f0f2f5; min-height: 100vh; }
