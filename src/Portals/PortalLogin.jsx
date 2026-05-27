@@ -39,10 +39,13 @@ const PortalLogin = () => {
     setIsLoading(true);
     
     try {
+      // First, get user info to determine role
+      // The backend will determine the role from the user record
       const response = await fetch(`${API_URL}/auth/login`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email, password })
+        // No need to send role - backend will find it from user record
       });
       
       const data = await response.json();
@@ -72,11 +75,14 @@ const PortalLogin = () => {
           const dashboards = {
             super_admin: '/portal/super-admin',
             academic_admin: '/portal/academic-admin',
+            discipline_admin: '/portal/discipline-admin',
+            accounts_admin: '/portal/accounts-admin',
             teacher: '/portal/teacher',
             student: '/portal/student',
             parent: '/portal/parent'
           };
-          navigate(dashboards[data.role] || '/portal/login');
+          const redirectPath = dashboards[data.role] || '/portal/login';
+          navigate(redirectPath);
         }, 1500);
       } else {
         Swal.fire({
@@ -87,9 +93,10 @@ const PortalLogin = () => {
         });
       }
     } catch (error) {
+      console.error('Login error:', error);
       Swal.fire({
         title: 'Connection Error',
-        text: 'Unable to connect to server',
+        text: 'Unable to connect to server. Please check your internet connection.',
         icon: 'error',
         confirmButtonColor: '#1e3c72'
       });
@@ -134,6 +141,7 @@ const PortalLogin = () => {
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 required
+                autoComplete="email"
               />
             </div>
             
@@ -145,6 +153,7 @@ const PortalLogin = () => {
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 required
+                autoComplete="current-password"
               />
               <button type="button" className="password-toggle" onClick={() => setShowPassword(!showPassword)}>
                 <i className={`fas ${showPassword ? 'fa-eye-slash' : 'fa-eye'}`}></i>
@@ -279,31 +288,6 @@ const PortalLogin = () => {
           font-size: 1rem;
           font-style: italic;
           font-weight: 300;
-        }
-
-        .stats {
-          display: flex;
-          justify-content: center;
-          gap: 2rem;
-          margin-top: 2.5rem;
-          padding-top: 2rem;
-          border-top: 1px solid rgba(255, 255, 255, 0.2);
-        }
-
-        .stat {
-          text-align: center;
-        }
-
-        .stat-number {
-          display: block;
-          font-size: 1.3rem;
-          font-weight: 700;
-          color: #ffc107;
-        }
-
-        .stat-label {
-          font-size: 0.7rem;
-          opacity: 0.8;
         }
 
         /* RIGHT SIDE - LOGIN SECTION */
@@ -523,16 +507,6 @@ const PortalLogin = () => {
             font-size: 0.9rem;
           }
           
-          .stats {
-            gap: 1.5rem;
-            margin-top: 1.5rem;
-            padding-top: 1.5rem;
-          }
-          
-          .stat-number {
-            font-size: 1.1rem;
-          }
-          
           .login-box {
             padding: 1.8rem;
           }
@@ -545,18 +519,6 @@ const PortalLogin = () => {
         @media (max-width: 480px) {
           .portal-login-left {
             min-height: 35vh;
-          }
-          
-          .stats {
-            gap: 1rem;
-          }
-          
-          .stat-number {
-            font-size: 1rem;
-          }
-          
-          .stat-label {
-            font-size: 0.6rem;
           }
           
           .login-box {
