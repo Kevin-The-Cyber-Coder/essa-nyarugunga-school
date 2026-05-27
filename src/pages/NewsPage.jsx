@@ -604,7 +604,11 @@ const NewsPage = () => {
           left: 0;
           right: 0;
           bottom: 0;
-          background: linear-gradient(135deg, rgba(26,58,92,0.95) 0%, rgba(42,82,152,0.85) 100%);
+            background: linear-gradient(
+  135deg,
+  hsla(220, 60%, 18%, 0.80) 0%,
+  hsla(45, 90%, 70%, 0.45) 100%
+);
         }
         .news-hero-content {
           position: relative;

@@ -114,20 +114,6 @@ const PortalLogin = () => {
             <i className="fas fa-quote-left"></i>
             <p>Shaping Futures, Building Leaders</p>
           </div>
-          <div className="stats">
-            <div className="stat">
-              <span className="stat-number">1000+</span>
-              <span className="stat-label">Students</span>
-            </div>
-            <div className="stat">
-              <span className="stat-number">40+</span>
-              <span className="stat-label">Teachers</span>
-            </div>
-            <div className="stat">
-              <span className="stat-number">20+</span>
-              <span className="stat-label">Years</span>
-            </div>
-          </div>
         </div>
       </div>
 

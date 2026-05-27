@@ -455,7 +455,11 @@ const AcademicsPage = () => {
           left: 0;
           right: 0;
           bottom: 0;
-          background: linear-gradient(135deg, rgba(30,60,114,0.95) 0%, rgba(42,82,152,0.85) 50%, rgba(30,60,114,0.95) 100%);
+            background: linear-gradient(
+  135deg,
+  hsla(220, 60%, 18%, 0.80) 0%,
+  hsla(45, 90%, 70%, 0.45) 100%
+);
         }
         
         .academics-hero-content {
