@@ -3,8 +3,7 @@ import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-d
 import './App.css';
 import MessagingSystem from './components/MessagingSystem';
 
-// Inside your component
-<MessagingSystem user={currentUser} />
+
 
 // Pages
 import HomePage from './pages/HomePage';
