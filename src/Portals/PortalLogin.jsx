@@ -91,7 +91,7 @@ const PortalLogin = () => {
     } catch (error) {
       console.error('Login error:', error);
       Swal.fire({
-        title: '❌ Connection Error',
+        title: ' Connection Error',
         text: 'Please check your internet connection and Try again!!.',
         icon: 'error',
         confirmButtonColor: '#1a3a5c',
