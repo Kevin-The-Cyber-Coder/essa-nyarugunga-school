@@ -623,7 +623,12 @@ const PrivacyPolicy = () => {
         /* Hero Section */
         .hero-section {
           position: relative;
-          background: linear-gradient(135deg, #0a0a2a 0%, #1a2a4a 50%, #0a1a3a 100%);
+               height: 100%;
+    background: linear-gradient(
+  135deg,
+  hsla(220, 60%, 18%, 0.80) 0%,
+  hsla(45, 90%, 70%, 0.45) 100%
+);
           color: white;
           padding: 4rem 0 6rem;
           overflow: hidden;
