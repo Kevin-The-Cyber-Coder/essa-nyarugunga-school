@@ -13,6 +13,7 @@ import AdmissionsPage from './pages/AdmissionsPage';
 import NewsPage from './pages/NewsPage';
 import GalleryPage from './pages/GalleryPage';
 import ContactPage from './pages/ContactPage';
+import PrivacyPolicy from './pages/PrivacyPolicy';
 
 // Portals
 import PortalLogin from './portals/PortalLogin';
@@ -35,6 +36,7 @@ function App() {
         <Route path="/news" element={<NewsPage />} />
         <Route path="/gallery" element={<GalleryPage />} />
         <Route path="/contact" element={<ContactPage />} />
+        <Route path="/privacy-policy" element={<PrivacyPolicy />} />
         
         {/* Portal Login */}
         <Route path="/portal/login" element={<PortalLogin />} />
