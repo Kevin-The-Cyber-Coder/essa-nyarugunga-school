@@ -252,13 +252,7 @@ const PortalLogin = () => {
         .overlay {
           position: absolute;
           inset: 0;
-          background: linear-gradient(
-            135deg,
-            rgba(26, 58, 92, 0.92) 0%,
-            rgba(13, 43, 66, 0.88) 100%
-          );
-          z-index: 1;
-        }
+        
 
         .brand-section {
           text-align: center;
