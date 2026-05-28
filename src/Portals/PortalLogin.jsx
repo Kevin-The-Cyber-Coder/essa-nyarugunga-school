@@ -60,6 +60,7 @@ const PortalLogin = () => {
 
         Swal.fire({
           title: 'Login Successful!',
+          text:`You Can now access Your Portal`,
           text: `Welcome back, ${data.fullName}!`,
           icon: 'success',
           timer: 1500,
@@ -91,7 +92,7 @@ const PortalLogin = () => {
       console.error('Login error:', error);
       Swal.fire({
         title: 'Connection Error',
-        text: 'Unable to connect to the server. Please check your internet connection.',
+        text: 'Please check your internet connection.',
         icon: 'error',
         confirmButtonColor: '#1a3a5c',
       });
