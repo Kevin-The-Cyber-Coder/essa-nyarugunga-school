@@ -106,7 +106,7 @@ const HomePage = () => {
 
   // Counter animation
   useEffect(() => {
-    const targets = { students: 800, teachers: 40, years: 20 };
+    const targets = { students: 800, teachers: 20, years: 20 };
     const duration = 2000;
     const stepTime = 20;
     const steps = duration / stepTime;
