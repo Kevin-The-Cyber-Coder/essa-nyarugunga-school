@@ -123,7 +123,7 @@ const ContactPage = () => {
       confirmButtonColor: '#27ae60'
     }).then((result) => {
       if (result.isConfirmed) {
-        window.location.href = 'tel:+250788123456';
+        window.location.href = 'tel:250788123456';
       }
     });
   };
