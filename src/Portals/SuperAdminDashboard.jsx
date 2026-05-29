@@ -776,195 +776,51 @@ const SuperAdminDashboard = () => {
             </div>
           )}
 
-        {/* ╔══ ANNOUNCEMENTS ══╗ */}
-{activeTab === 'announcements' && (
-  <div>
-    <div
-      style={{
-        display: 'flex',
-        justifyContent: 'space-between',
-        alignItems: 'center',
-        marginBottom: 20,
-        flexWrap: 'wrap',
-        gap: 10
-      }}
-    >
-      <div>
-        <h2
-          style={{
-            margin: 0,
-            fontSize: 20,
-            color: '#1a3a5c',
-            fontFamily: "'Crimson Text', Georgia, serif"
-          }}
-        >
-          School Announcements
-        </h2>
-
-        <p
-          style={{
-            margin: '4px 0 0',
-            fontSize: 13,
-            color: '#888'
-          }}
-        >
-          {announcements?.length || 0} total announcements
-        </p>
-      </div>
-
-      <Btn
-        onClick={() => setAnnoModal(true)}
-        icon="fas fa-bullhorn"
-        color="#1a3a5c"
-      >
-        Post Announcement
-      </Btn>
-    </div>
-
-    <div
-      style={{
-        display: 'flex',
-        flexDirection: 'column',
-        gap: 14
-      }}
-    >
-      {(!announcements || announcements.length === 0) && (
-        <div
-          style={{
-            textAlign: 'center',
-            padding: 60,
-            color: '#bbb',
-            background: 'white',
-            borderRadius: 16
-          }}
-        >
-          <i
-            className="fas fa-bullhorn"
-            style={{
-              fontSize: 36,
-              marginBottom: 12,
-              display: 'block',
-              opacity: 0.3
-            }}
-          />
-          No announcements yet
-        </div>
-      )}
-
-      {announcements?.map((ann) => {
-        const pColor =
-          ann.priority === 'urgent'
-            ? '#e74c3c'
-            : ann.priority === 'high'
-            ? '#f39c12'
-            : '#27ae60';
-
-        const pBg =
-          ann.priority === 'urgent'
-            ? '#fdecea'
-            : ann.priority === 'high'
-            ? '#fff3e0'
-            : '#e8f5e9';
-
-        return (
-          <div
-            key={ann._id}
-            style={{
-              background: 'white',
-              borderRadius: 14,
-              padding: '18px 20px',
-              borderLeft: `4px solid ${pColor}`,
-              boxShadow: '0 2px 10px rgba(0,0,0,.05)'
-            }}
-          >
-            <div
-              style={{
-                display: 'flex',
-                justifyContent: 'space-between',
-                alignItems: 'flex-start',
-                marginBottom: 10,
-                flexWrap: 'wrap',
-                gap: 10
-              }}
-            >
-              <div>
-                <h3
-                  style={{
-                    margin: 0,
-                    fontSize: 15,
-                    color: '#1a3a5c'
-                  }}
-                >
-                  {ann.title}
-                </h3>
-
-                <div
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: 8,
-                    marginTop: 6
-                  }}
-                >
-                  <Badge
-                    text={ann.priority}
-                    color={pColor}
-                    bg={pBg}
-                  />
-
-                  <Badge
-                    text={
-                      ann.audience === 'all'
-                        ? 'All Users'
-                        : ann.audience
-                    }
-                    color="#888"
-                    bg="#f5f5f5"
-                  />
+          {/* ╔══ ANNOUNCEMENTS ══╗ */}
+          {activeTab === 'announcements' && (
+            <div>
+              <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:20, flexWrap:'wrap', gap:10 }}>
+                <div>
+                  <h2 style={{ margin:0, fontSize:20, color:'#1a3a5c', fontFamily:"'Crimson Text', Georgia, serif" }}>School Announcements</h2>
+                  <p style={{ margin:'4px 0 0', fontSize:13, color:'#888' }}>{announcements.length} total announcements</p>
                 </div>
+                <Btn onClick={() => setAnnoModal(true)} icon="fas fa-bullhorn" color="#1a3a5c">Post Announcement</Btn>
               </div>
-
-              <div
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 8
-                }}
-              >
-                <span
-                  style={{
-                    fontSize: 11,
-                    color: '#aaa'
-                  }}
-                >
-                  {fmt(ann.createdAt)}
-                </span>
-
-                <Btn
-                  small
-                  danger
-                  icon="fas fa-trash"
-                  onClick={() => deleteAnnouncement(ann._id)}
-                />
+              <div style={{ display:'flex', flexDirection:'column', gap:14 }}>
+                {announcements.length === 0 && (
+                  <div style={{ textAlign:'center', padding:60, color:'#bbb', background:'white', borderRadius:16 }}>
+                    <i className="fas fa-bullhorn" style={{ fontSize:36, marginBottom:12, display:'block', opacity:.3 }} />
+                    No announcements yet
+                  </div>
+                )}
+                {announcements.map(ann => {
+                  const pColor = ann.priority==='urgent'?'#e74c3c':ann.priority==='high'?'#f39c12':'#27ae60';
+                  const pBg    = ann.priority==='urgent'?'#fdecea':ann.priority==='high'?'#fff3e0':'#e8f5e9';
+                  return (
+                    <div key={ann._id} style={{
+                      background:'white', borderRadius:14, padding:'18px 20px',
+                      borderLeft:`4px solid ${pColor}`, boxShadow:'0 2px 10px rgba(0,0,0,.05)',
+                    }}>
+                      <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', marginBottom:10, flexWrap:'wrap', gap:10 }}>
+                        <div>
+                          <h3 style={{ margin:0, fontSize:15, color:'#1a3a5c' }}>{ann.title}</h3>
+                          <div style={{ display:'flex', alignItems:'center', gap:8, marginTop:6 }}>
+                            <Badge text={ann.priority} color={pColor} bg={pBg} />
+                            <Badge text={ann.audience==='all'?'All Users':ann.audience} color="#888" bg="#f5f5f5" />
+                          </div>
+                        </div>
+                        <div style={{ display:'flex', alignItems:'center', gap:8 }}>
+                          <span style={{ fontSize:11, color:'#aaa' }}>{fmt(ann.createdAt)}</span>
+                          <Btn small danger icon="fas fa-trash" onClick={() => deleteAnnouncement(ann._id)} />
+                        </div>
+                      </div>
+                      <p style={{ margin:0, fontSize:13, color:'#555', lineHeight:1.7 }}>{ann.content}</p>
+                    </div>
+                  );
+                })}
               </div>
             </div>
-
-            <p
-              style={{
-                margin: 0,
-                fontSize: 13,
-                color: '#555',
-                lineHeight: 1.7
-              }}
-            >
-              {ann.content}
-            </p>
-          </div>
-        );
-      })}
-    </div>
-  </div>
-)}
+          )}
 
           {/* ╔══ DISCIPLINE ══╗ */}
           {activeTab === 'discipline' && (
