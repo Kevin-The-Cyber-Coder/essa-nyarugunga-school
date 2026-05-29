@@ -194,7 +194,7 @@ const permissionSchema = new mongoose.Schema({
 const announcementSchema = new mongoose.Schema({
   title: String,
   content: String,
-  audience: [String],
+  audience: { type: mongoose.Schema.Types.Mixed, default: ['all'] }, // Accepts string or array
   priority: { type: String, default: 'normal' },
   createdBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
   isActive: { type: Boolean, default: true },
@@ -659,11 +659,21 @@ app.post('/api/subscriptions/unsubscribe', async (req, res) => {
 });
 
 // ==================== ANNOUNCEMENTS ====================
-app.get('/api/announcements', async (req, res) => {
+app.get('/api/super-admin/announcements', authMiddleware, requireRole('super_admin'), async (req, res) => {
   try {
-    const announcements = await Announcement.find({ isActive: true }).sort({ createdAt: -1 });
-    res.json(announcements);
+    const announcements = await Announcement.find().sort({ createdAt: -1 });
+    // Ensure each announcement has audience as array or convert it
+    const formattedAnnouncements = announcements.map(ann => {
+      const annObj = ann.toObject();
+      // Convert audience to array if it's a string
+      if (typeof annObj.audience === 'string') {
+        annObj.audience = [annObj.audience];
+      }
+      return annObj;
+    });
+    res.json(formattedAnnouncements);
   } catch (error) {
+    console.error('Get announcements error:', error);
     res.status(500).json({ message: error.message });
   }
 });

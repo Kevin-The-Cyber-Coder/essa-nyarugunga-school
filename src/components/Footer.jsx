@@ -167,7 +167,7 @@ const Footer = () => {
               <span className="separator">|</span> 
               All rights reserved. 
               <span className="separator">|</span>
-              Developed with <i className="fas fa-heart"></i> by 
+              Developed with <i className="fas fa-code"></i> by 
               <a href="http://wa.me/250737692152" target="_blank" rel="noopener noreferrer">    CYBER CODING ARENA </a>
             </p>
           </div>
