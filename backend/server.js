@@ -742,6 +742,129 @@ app.delete('/api/super-admin/announcements/:id', authMiddleware, requireRole('su
     res.status(500).json({ message: error.message });
   }
 });
+// ==================== ANNOUNCEMENTS ====================
+app.get('/api/announcements', async (req, res) => {
+  try {
+    const announcements = await Announcement.find({ isActive: true }).sort({ createdAt: -1 });
+    const formatted = announcements.map(ann => ({
+      ...ann.toObject(),
+      audience: Array.isArray(ann.audience) ? ann.audience[0] : (ann.audience || 'all')
+    }));
+    res.json(formatted);
+  } catch (error) {
+    console.error('GET /api/announcements error:', error);
+    res.status(500).json({ message: error.message });
+  }
+});
+
+// ADD THIS - POST endpoint for announcements (for discipline admin, academic admin, etc.)
+app.post('/api/announcements', authMiddleware, async (req, res) => {
+  try {
+    // Allow these roles to post announcements
+    const allowedRoles = ['super_admin', 'academic_admin', 'discipline_admin', 'accounts_admin'];
+    if (!allowedRoles.includes(req.userRole)) {
+      return res.status(403).json({ message: 'Access denied. You do not have permission to post announcements.' });
+    }
+    
+    let audience = req.body.audience;
+    if (typeof audience === 'string') {
+      audience = audience === 'all' ? ['all'] : [audience];
+    }
+    if (!audience || (Array.isArray(audience) && audience.length === 0)) {
+      audience = ['all'];
+    }
+    
+    const announcement = await Announcement.create({ 
+      title: req.body.title,
+      content: req.body.content,
+      audience: audience,
+      priority: req.body.priority || 'normal',
+      createdBy: req.userId,
+      isActive: true
+    });
+    
+    res.json({ 
+      success: true, 
+      announcement: {
+        ...announcement.toObject(),
+        audience: announcement.audience[0]
+      }
+    });
+  } catch (error) {
+    console.error('POST /api/announcements error:', error);
+    res.status(500).json({ message: error.message });
+  }
+});
+
+app.get('/api/super-admin/announcements', authMiddleware, requireRole('super_admin'), async (req, res) => {
+  try {
+    const announcements = await Announcement.find().sort({ createdAt: -1 });
+    const formatted = announcements.map(ann => ({
+      ...ann.toObject(),
+      audience: Array.isArray(ann.audience) ? ann.audience[0] : (ann.audience || 'all')
+    }));
+    res.json(formatted);
+  } catch (error) {
+    console.error('GET /api/super-admin/announcements error:', error);
+    res.status(500).json({ message: error.message });
+  }
+});
+
+app.post('/api/super-admin/announcements', authMiddleware, requireRole('super_admin'), async (req, res) => {
+  try {
+    let audience = req.body.audience;
+    if (typeof audience === 'string') {
+      audience = audience === 'all' ? ['all'] : [audience];
+    }
+    if (!audience || (Array.isArray(audience) && audience.length === 0)) {
+      audience = ['all'];
+    }
+    
+    const announcement = await Announcement.create({ 
+      title: req.body.title,
+      content: req.body.content,
+      audience: audience,
+      priority: req.body.priority || 'normal',
+      createdBy: req.userId,
+      isActive: true
+    });
+    
+    res.json({ 
+      success: true, 
+      announcement: {
+        ...announcement.toObject(),
+        audience: announcement.audience[0]
+      }
+    });
+  } catch (error) {
+    console.error('POST /api/super-admin/announcements error:', error);
+    res.status(500).json({ message: error.message });
+  }
+});
+
+app.put('/api/super-admin/announcements/:id', authMiddleware, requireRole('super_admin'), async (req, res) => {
+  try {
+    const announcement = await Announcement.findByIdAndUpdate(req.params.id, req.body, { new: true });
+    res.json({ 
+      success: true, 
+      announcement: {
+        ...announcement.toObject(),
+        audience: Array.isArray(announcement.audience) ? announcement.audience[0] : (announcement.audience || 'all')
+      }
+    });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+});
+
+app.delete('/api/super-admin/announcements/:id', authMiddleware, requireRole('super_admin'), async (req, res) => {
+  try {
+    await Announcement.findByIdAndDelete(req.params.id);
+    res.json({ success: true });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+});
 
 // ==================== NEWS ====================
 app.get('/api/news/public', async (req, res) => {
@@ -1265,7 +1388,140 @@ app.put('/api/permissions/:id', authMiddleware, requireRole('discipline_admin', 
     res.status(500).json({ message: error.message });
   }
 });
+// ==================== PERMISSIONS ====================
+app.get('/api/permissions', authMiddleware, async (req, res) => {
+  try {
+    let permissions;
+    if (req.userRole === 'super_admin' || req.userRole === 'discipline_admin') {
+      permissions = await Permission.find().sort({ createdAt: -1 });
+    } else {
+      permissions = await Permission.find({ requesterId: req.userId }).sort({ createdAt: -1 });
+    }
+    res.json(permissions);
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+});
 
+app.post('/api/permissions', authMiddleware, async (req, res) => {
+  try {
+    const permission = await Permission.create({
+      ...req.body, requesterId: req.userId,
+      requesterName: req.userName, requesterRole: req.userRole
+    });
+    res.json({ success: true, permission });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+});
+
+// ADD THIS - Super admin can view all permissions including discipline admin requests
+app.get('/api/super-admin/permissions', authMiddleware, requireRole('super_admin'), async (req, res) => {
+  try {
+    const permissions = await Permission.find().sort({ createdAt: -1 });
+    res.json(permissions);
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+});
+
+// FIX THIS - Allow super_admin to approve/reject permission requests
+app.put('/api/permissions/:id', authMiddleware, async (req, res) => {
+  try {
+    // Allow super_admin OR discipline_admin to update
+    if (req.userRole !== 'super_admin' && req.userRole !== 'discipline_admin') {
+      return res.status(403).json({ message: 'Access denied. Only Super Admin or Discipline Admin can process permissions.' });
+    }
+    
+    const permission = await Permission.findByIdAndUpdate(
+      req.params.id,
+      { ...req.body, reviewedBy: req.userId, reviewedAt: new Date() },
+      { new: true }
+    );
+    res.json({ success: true, permission });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+});
+
+// ADD THIS - Super admin stats include pending permissions
+app.get('/api/super-admin/stats', authMiddleware, requireRole('super_admin'), async (req, res) => {
+  try {
+    const [totalStudents, totalTeachers, totalClasses, pendingApplications, pendingDiscipline, pendingPermissions, totalIncome, totalExpenses] = await Promise.all([
+      Student.countDocuments({ isActive: true }),
+      TeacherProfile.countDocuments(),
+      Class.countDocuments(),
+      AdmissionApplication.countDocuments({ status: 'pending' }),
+      Discipline.countDocuments({ status: 'pending' }),
+      Permission.countDocuments({ status: 'pending' }), // This counts all pending permissions including discipline admin requests
+      Income.aggregate([{ $group: { _id: null, total: { $sum: '$amount' } } }]),
+      Expense.aggregate([{ $group: { _id: null, total: { $sum: '$amount' } } }])
+    ]);
+    res.json({
+      success: true,
+      totalStudents, totalTeachers, totalClasses, pendingApplications,
+      pendingDiscipline, pendingPermissions,
+      totalIncome: totalIncome[0]?.total || 0,
+      totalExpenses: totalExpenses[0]?.total || 0
+    });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+});// ==================== PERMISSIONS ====================
+app.get('/api/permissions', authMiddleware, async (req, res) => {
+  try {
+    let permissions;
+    if (req.userRole === 'super_admin' || req.userRole === 'discipline_admin') {
+      permissions = await Permission.find().sort({ createdAt: -1 });
+    } else {
+      permissions = await Permission.find({ requesterId: req.userId }).sort({ createdAt: -1 });
+    }
+    res.json(permissions);
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+});
+
+app.post('/api/permissions', authMiddleware, async (req, res) => {
+  try {
+    const permission = await Permission.create({
+      ...req.body, requesterId: req.userId,
+      requesterName: req.userName, requesterRole: req.userRole
+    });
+    res.json({ success: true, permission });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+});
+
+// Super Admin endpoint to view all permissions
+app.get('/api/super-admin/permissions', authMiddleware, requireRole('super_admin'), async (req, res) => {
+  try {
+    const permissions = await Permission.find().sort({ createdAt: -1 });
+    res.json(permissions);
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+});
+
+// Update permission (approve/reject) - Super Admin and Discipline Admin can do this
+app.put('/api/permissions/:id', authMiddleware, async (req, res) => {
+  try {
+    // Allow super_admin OR discipline_admin to update
+    if (req.userRole !== 'super_admin' && req.userRole !== 'discipline_admin') {
+      return res.status(403).json({ message: 'Access denied. Only Super Admin or Discipline Admin can process permissions.' });
+    }
+    
+    const permission = await Permission.findByIdAndUpdate(
+      req.params.id,
+      { ...req.body, reviewedBy: req.userId, reviewedAt: new Date() },
+      { new: true }
+    );
+    res.json({ success: true, permission });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+});
 // ==================== FEES ====================
 app.get('/api/accounts/fee-structures', authMiddleware, requireRole('accounts_admin', 'super_admin'), async (req, res) => {
   const feeStructures = await FeeStructure.find().populate('classId', 'grade className').sort({ createdAt: -1 });
