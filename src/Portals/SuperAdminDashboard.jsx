@@ -296,7 +296,9 @@ const SuperAdminDashboard = () => {
 
   const fetchStats        = () => api('/super-admin/stats').then(d => setStats(d)).catch(()=>{});
   const fetchAdmins       = () => api('/super-admin/admins').then(d => setAdmins(Array.isArray(d)?d:[])).catch(()=>{});
-  const fetchAnnouncements= () => api('/super-admin/announcements').then(d => setAnnouncements(Array.isArray(d)?d:[])).catch(()=>{});
+  const fetchAnnouncements = () => api('/super-admin/announcements')
+  .then(d => setAnnouncements(Array.isArray(d) ? d : []))
+  .catch(() => setAnnouncements([]));
   const fetchDiscipline   = () => api('/discipline-admin/cases').then(d => {
     setDisciplineCases(Array.isArray(d) ? d : []);
     const total = (Array.isArray(d)?d:[]).length;
