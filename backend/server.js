@@ -845,9 +845,23 @@ app.delete('/api/super-admin/admins/:id', authMiddleware, requireRole('super_adm
 
 app.post('/api/super-admin/announcements', authMiddleware, requireRole('super_admin'), async (req, res) => {
   try {
-    const announcement = await Announcement.create({ ...req.body, createdBy: req.userId });
+    // Convert audience from string to array if needed
+    let audience = req.body.audience;
+    if (typeof audience === 'string') {
+      audience = audience === 'all' ? ['all'] : [audience];
+    }
+    if (!audience || (Array.isArray(audience) && audience.length === 0)) {
+      audience = ['all'];
+    }
+    
+    const announcement = await Announcement.create({ 
+      ...req.body, 
+      audience,  // Use the converted audience array
+      createdBy: req.userId 
+    });
     res.json({ success: true, announcement });
   } catch (error) {
+    console.error('Post announcement error:', error);
     res.status(500).json({ message: error.message });
   }
 });
