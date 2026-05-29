@@ -1152,34 +1152,43 @@ app.get('/api/academic-admin/students', authMiddleware, async (req, res) => {
   }
 });
 
-app.post('/api/academic-admin/students', authMiddleware, requireRole('academic_admin', 'super_admin'), async (req, res) => {
+app.post('/api/academic-admin/students', authMiddleware, requireRole('academic_admin', 'super_admin', 'teacher'), async (req, res) => {
   try {
     const count = await Student.countDocuments();
     const studentId = `STU${new Date().getFullYear()}${String(count + 1).padStart(4, '0')}`;
+    
+    // Get the class to ensure teacher is assigned to it
+    if (req.body.classId) {
+      const classItem = await Class.findById(req.body.classId);
+      // Only allow if teacher is assigned to this class or is admin
+      if (req.userRole !== 'super_admin' && req.userRole !== 'academic_admin') {
+        if (classItem.teacherId?.toString() !== req.userId) {
+          return res.status(403).json({ message: 'You can only add students to your assigned classes' });
+        }
+      }
+    }
+    
     const student = await Student.create({ ...req.body, studentId });
     if (req.body.classId) {
       await Class.findByIdAndUpdate(req.body.classId, { $addToSet: { students: student._id } });
     }
-    res.json({ success: true, student });
-  } catch (error) {
-    res.status(500).json({ message: error.message });
-  }
-});
-
-app.put('/api/academic-admin/students/:id', authMiddleware, requireRole('academic_admin', 'super_admin'), async (req, res) => {
-  try {
-    const student = await Student.findByIdAndUpdate(req.params.id, req.body, { new: true });
-    res.json({ success: true, student });
-  } catch (error) {
-    res.status(500).json({ message: error.message });
-  }
-});
-
-app.delete('/api/academic-admin/students/:id', authMiddleware, requireRole('academic_admin', 'super_admin'), async (req, res) => {
-  try {
-    const student = await Student.findByIdAndDelete(req.params.id);
-    if (student?.classId) await Class.findByIdAndUpdate(student.classId, { $pull: { students: student._id } });
-    res.json({ success: true });
+    
+    // Generate student user account
+    const hashedPassword = await bcrypt.hash(req.body.password || 'student123', 10);
+    const studentUser = await User.create({
+      fullName: req.body.fullName,
+      email: req.body.email || `${req.body.fullName.replace(/\s/g, '').toLowerCase()}@student.essa.rw`,
+      password: hashedPassword,
+      role: 'student',
+      phone: req.body.parentPhone,
+      createdBy: req.userId
+    });
+    
+    // Update student with userId
+    student.userId = studentUser._id;
+    await student.save();
+    
+    res.json({ success: true, student, generatedPassword: req.body.password || 'student123' });
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
