@@ -140,6 +140,17 @@ const assignmentSchema = new mongoose.Schema({
   }],
   createdAt: { type: Date, default: Date.now }
 });
+const lessonPlanSchema = new mongoose.Schema({
+  title: { type: String, required: true },
+  topic: { type: String, required: true },
+  objectives: String,
+  materials: String,
+  fileUrl: String,
+  shareWithStudents: { type: Boolean, default: true },
+  teacherId: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+  classId: { type: mongoose.Schema.Types.ObjectId, ref: 'Class' },
+  createdAt: { type: Date, default: Date.now }
+});
 
 const attendanceSchema = new mongoose.Schema({
   studentId: { type: mongoose.Schema.Types.ObjectId, ref: 'Student' },
@@ -403,6 +414,7 @@ const Salary             = mongoose.model('Salary', salarySchema);
 const Budget             = mongoose.model('Budget', budgetSchema);
 const Income             = mongoose.model('Income', incomeSchema);
 const Expense            = mongoose.model('Expense', expenseSchema);
+const LessonPlan = mongoose.model('LessonPlan', lessonPlanSchema);
 
 // ==================== MIDDLEWARE ====================
 const authMiddleware = async (req, res, next) => {
