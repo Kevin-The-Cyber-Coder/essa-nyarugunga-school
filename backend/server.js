@@ -32,6 +32,13 @@ app.use(cors({
 }));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
+// Add this after app.use(express.json())
+app.use((req, res, next) => {
+  if (req.path.includes('/announcements')) {
+    console.log(`${req.method} ${req.path}`, req.body);
+  }
+  next();
+});
 
 // ==================== FILE UPLOAD CONFIGURATION ====================
 const uploadDirs = ['./uploads', './uploads/news', './uploads/gallery', './uploads/profile'];
