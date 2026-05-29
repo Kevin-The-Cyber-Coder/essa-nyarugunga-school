@@ -22,7 +22,7 @@ import TeacherDashboard from './portals/TeacherDashboard';
 import StudentDashboard from './portals/StudentDashboard';
 import ParentDashboard from './portals/ParentDashboard';
 import AccountsAdminDashboard from './portals/AccountsAdminDashboard';
-import DisciplineAdminDashboard from './portals/DisciplineAdminDashboard'; // Add if exists
+import DisciplineAdminDashboard from './portals/DisciplineAdminDashboard'; 
 import ProtectedRoute from './components/ProtectedRoute';
 
 function App() {
