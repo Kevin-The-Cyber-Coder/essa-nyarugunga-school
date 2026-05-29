@@ -168,7 +168,7 @@ const Footer = () => {
               All rights reserved. 
               <span className="separator">|</span>
               Developed with <i className="fas fa-heart"></i> by 
-              <a href="http://wa.me/250737692152" target="_blank" rel="noopener noreferrer"> Mukeshiamana Kevin</a>
+              <a href="http://wa.me/250737692152" target="_blank" rel="noopener noreferrer">    CYBER CODING ARENA </a>
             </p>
           </div>
           <div className="footer-bottom-links">
