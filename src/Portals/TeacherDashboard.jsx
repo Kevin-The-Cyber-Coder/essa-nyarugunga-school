@@ -6,11 +6,23 @@ import io from 'socket.io-client';
 const API_URL = 'http://localhost:5000/api';
 const SOCKET_URL = 'http://localhost:5000';
 const getToken = () => localStorage.getItem('portalToken');
-const authHeaders = () => ({ 'Content-Type': 'application/json', Authorization: `Bearer ${getToken()}` });
+const authHeaders = () => ({ 
+  'Content-Type': 'application/json', 
+  'Authorization': `Bearer ${getToken()}` 
+});
 
 // ─── helpers ─────────────────────────────────────────────────────────────────
 const fmt = (d) => d ? new Date(d).toLocaleDateString('en-RW', { day: '2-digit', month: 'short', year: 'numeric' }) : '—';
 const fmtTime = (d) => d ? new Date(d).toLocaleTimeString('en-RW', { hour: '2-digit', minute: '2-digit' }) : '';
+
+const getFormattedDate = () => {
+  const date = new Date();
+  return date.toLocaleDateString('en-RW', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
+};
+
+const getWeekdayLower = () => {
+  return new Date().toLocaleDateString('en-US', { weekday: 'long' }).toLowerCase();
+};
 
 const roleBadge = (role) => {
   const map = {
@@ -74,18 +86,18 @@ const Txt = (props) => <textarea {...props} style={{ ...inputStyle, resize: 'ver
 const Btn = ({ children, onClick, icon, color = '#1a3a5c', textColor = 'white', small, danger, disabled, style: s }) => {
   const bg = danger ? '#e74c3c' : disabled ? '#ccc' : color;
   return (
-    <button onClick={onClick} disabled={disabled} style={{ background: bg, color: textColor, border: 'none', borderRadius: 8, padding: small ? '6px 13px' : '9px 18px', fontSize: small ? 12 : 13, fontWeight: 600, cursor: disabled ? 'not-allowed' : 'pointer', display: 'inline-flex', alignItems: 'center', gap: 6, transition: 'filter .2s, transform .2s', whiteSpace: 'nowrap', ...s }}
-      onMouseEnter={e => { if (!disabled) { e.currentTarget.style.filter = 'brightness(1.1)'; e.currentTarget.style.transform = 'translateY(-1px)'; } }}
-      onMouseLeave={e => { e.currentTarget.style.filter = ''; e.currentTarget.style.transform = ''; }}>
+    <button onClick={onClick} disabled={disabled} style={{ background: bg, color: textColor, border: 'none', borderRadius: 8, padding: small ? '6px 13px' : '9px 18px', fontSize: small ? 12 : 13, fontWeight: 600, cursor: disabled ? 'not-allowed' : 'pointer', display: 'inline-flex', alignItems: 'center', gap: 6, transition: 'all 0.2s', whiteSpace: 'nowrap', ...s }}
+      onMouseEnter={e => { if (!disabled) { e.currentTarget.style.filter = 'brightness(1.05)'; e.currentTarget.style.transform = 'translateY(-1px)'; } }}
+      onMouseLeave={e => { if (!disabled) { e.currentTarget.style.filter = ''; e.currentTarget.style.transform = ''; } }}>
       {icon && <i className={icon} style={{ fontSize: 13 }} />}{children}
     </button>
   );
 };
 
 const StatCard = ({ icon, label, value, sub, accent = '#9b59b6', bg = '#f3e5f5', onClick }) => (
-  <div onClick={onClick} style={{ background: 'white', borderRadius: 16, padding: '18px 20px', display: 'flex', alignItems: 'center', gap: 14, boxShadow: '0 2px 12px rgba(0,0,0,.06)', cursor: onClick ? 'pointer' : 'default', transition: 'transform .2s, box-shadow .2s', border: '1px solid #f0f0f0' }}
-    onMouseEnter={e => { if (onClick) { e.currentTarget.style.transform = 'translateY(-3px)'; e.currentTarget.style.boxShadow = '0 10px 28px rgba(0,0,0,.12)'; } }}
-    onMouseLeave={e => { e.currentTarget.style.transform = ''; e.currentTarget.style.boxShadow = '0 2px 12px rgba(0,0,0,.06)'; }}>
+  <div onClick={onClick} style={{ background: 'white', borderRadius: 16, padding: '18px 20px', display: 'flex', alignItems: 'center', gap: 14, boxShadow: '0 2px 12px rgba(0,0,0,.06)', cursor: onClick ? 'pointer' : 'default', transition: 'all 0.2s', border: '1px solid #f0f0f0' }}
+    onMouseEnter={e => { if (onClick) { e.currentTarget.style.transform = 'translateY(-3px)'; e.currentTarget.style.boxShadow = '0 8px 24px rgba(0,0,0,.12)'; } }}
+    onMouseLeave={e => { if (onClick) { e.currentTarget.style.transform = ''; e.currentTarget.style.boxShadow = '0 2px 12px rgba(0,0,0,.06)'; } }}>
     <div style={{ width: 50, height: 50, borderRadius: 14, background: bg, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
       <i className={icon} style={{ fontSize: 20, color: accent }} />
     </div>
@@ -107,8 +119,8 @@ const Table = ({ cols, rows, emptyMsg = 'No data found' }) => (
       </thead>
       <tbody>
         {rows.length === 0
-          ? <tr><td colSpan={cols.length} style={{ textAlign: 'center', padding: 36, color: '#bbb', fontSize: 13 }}>{emptyMsg}</td></tr>
-          : rows.map((row, i) => <tr key={i} style={{ borderBottom: '1px solid #f5f5f5' }} onMouseEnter={e => e.currentTarget.style.background = '#fafbff'} onMouseLeave={e => e.currentTarget.style.background = ''}>{row}</tr>)}
+          ? <tr><td colSpan={cols.length} style={{ textAlign: 'center', padding: 36, color: '#bbb', fontSize: 13 }}>{emptyMsg}</tr></tr>
+          : rows.map((row, i) => <tr key={i} style={{ borderBottom: '1px solid #f5f5f5', transition: 'background 0.2s' }} onMouseEnter={e => e.currentTarget.style.background = '#fafbff'} onMouseLeave={e => e.currentTarget.style.background = ''}>{row}</tr>)}
       </tbody>
     </table>
   </div>
@@ -166,13 +178,13 @@ const TeacherDashboard = () => {
   const [assignments, setAssignments] = useState([]);
   const [announcements, setAnnouncements] = useState([]);
   const [lessonPlans, setLessonPlans] = useState([]);
-  const [disciplineReports, setDisciplineReports] = useState([]);
   
   // modals
   const [assignmentModal, setAssignmentModal] = useState(false);
   const [attendanceModal, setAttendanceModal] = useState(false);
   const [disciplineModal, setDisciplineModal] = useState(false);
   const [lessonModal, setLessonModal] = useState(false);
+  const [studentModal, setStudentModal] = useState(false);
   const [selectedClass, setSelectedClass] = useState(null);
   
   // forms
@@ -186,6 +198,13 @@ const TeacherDashboard = () => {
   const [lessonForm, setLessonForm] = useState({
     title: '', topic: '', objectives: '', materials: '', shareWithStudents: true
   });
+  const [studentForm, setStudentForm] = useState({
+    fullName: '', email: '', parentName: '', parentPhone: '', password: ''
+  });
+  
+  // file states
+  const [assignmentFile, setAssignmentFile] = useState(null);
+  const [lessonFile, setLessonFile] = useState(null);
   
   // messaging
   const [msgUsers, setMsgUsers] = useState([]);
@@ -221,8 +240,6 @@ const TeacherDashboard = () => {
   useEffect(() => {
     const token = getToken(); 
     const role = localStorage.getItem('userRole');
-    console.log('TeacherDashboard - token:', !!token, 'role:', role);
-    
     if (!token || role !== 'teacher') { 
       navigate('/portal/login'); 
       return; 
@@ -272,6 +289,7 @@ const TeacherDashboard = () => {
     } catch (e) { console.error('Send error:', e); }
   };
   
+  // Create Assignment with File Upload
   const createAssignment = async () => {
     if (!assignmentForm.title || !assignmentForm.classId || !assignmentForm.dueDate) {
       Swal.fire('Missing Fields', 'Title, class and due date required', 'warning');
@@ -279,12 +297,96 @@ const TeacherDashboard = () => {
     }
     setSaving(true);
     try {
-      await api('/teacher/assignments', { method: 'POST', body: JSON.stringify(assignmentForm) });
+      const formData = new FormData();
+      formData.append('title', assignmentForm.title);
+      formData.append('description', assignmentForm.description);
+      formData.append('classId', assignmentForm.classId);
+      formData.append('type', assignmentForm.type);
+      formData.append('dueDate', assignmentForm.dueDate);
+      formData.append('totalPoints', assignmentForm.totalPoints);
+      if (assignmentFile) {
+        formData.append('file', assignmentFile);
+      }
+      
+      const token = getToken();
+      const response = await fetch(`${API_URL}/teacher/assignments`, {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${token}` },
+        body: formData
+      });
+      
+      if (!response.ok) throw await response.json();
+      
       Swal.fire('✅ Assignment Created!', 'Assignment published successfully', 'success');
       setAssignmentModal(false);
       setAssignmentForm({ title: '', description: '', classId: '', type: 'homework', dueDate: '', totalPoints: 100 });
+      setAssignmentFile(null);
       fetchAssignments();
-    } catch (e) { Swal.fire('Error', e.message || 'Failed', 'error'); }
+    } catch (e) { 
+      Swal.fire('Error', e.message || 'Failed to create assignment', 'error'); 
+    }
+    finally { setSaving(false); }
+  };
+  
+  // Upload Lesson Plan with File
+  const uploadLessonPlan = async () => {
+    if (!lessonForm.title || !lessonForm.topic) {
+      Swal.fire('Missing Fields', 'Title and topic required', 'warning');
+      return;
+    }
+    setSaving(true);
+    try {
+      const formData = new FormData();
+      formData.append('title', lessonForm.title);
+      formData.append('topic', lessonForm.topic);
+      formData.append('objectives', lessonForm.objectives);
+      formData.append('materials', lessonForm.materials);
+      formData.append('shareWithStudents', lessonForm.shareWithStudents);
+      if (lessonFile) {
+        formData.append('file', lessonFile);
+      }
+      
+      const token = getToken();
+      const response = await fetch(`${API_URL}/teacher/lesson-plans`, {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${token}` },
+        body: formData
+      });
+      
+      if (!response.ok) throw await response.json();
+      
+      Swal.fire('✅ Lesson Plan Uploaded!', 'Materials shared with students', 'success');
+      setLessonModal(false);
+      setLessonForm({ title: '', topic: '', objectives: '', materials: '', shareWithStudents: true });
+      setLessonFile(null);
+      fetchLessonPlans();
+    } catch (e) { 
+      Swal.fire('Error', e.message || 'Failed to upload', 'error'); 
+    }
+    finally { setSaving(false); }
+  };
+  
+  // Add Student to Class
+  const addStudent = async () => {
+    if (!studentForm.fullName || !studentForm.parentPhone) {
+      Swal.fire('Missing Fields', 'Student name and parent phone required', 'warning');
+      return;
+    }
+    setSaving(true);
+    try {
+      const studentData = { 
+        ...studentForm, 
+        classId: selectedClass?._id,
+        password: studentForm.password || 'student123'
+      };
+      await api('/academic-admin/students', { method: 'POST', body: JSON.stringify(studentData) });
+      Swal.fire('✅ Student Added!', `Student ${studentForm.fullName} added successfully. Password: ${studentData.password}`, 'success');
+      setStudentModal(false);
+      setStudentForm({ fullName: '', email: '', parentName: '', parentPhone: '', password: '' });
+      fetchStudents();
+    } catch (e) { 
+      Swal.fire('Error', e.message || 'Failed to add student', 'error'); 
+    }
     finally { setSaving(false); }
   };
   
@@ -310,23 +412,9 @@ const TeacherDashboard = () => {
       Swal.fire('✅ Incident Reported!', 'Report sent to Discipline Admin', 'success');
       setDisciplineModal(false);
       setDisciplineForm({ studentId: '', category: '', description: '', incidentDate: new Date().toISOString().split('T')[0] });
-    } catch (e) { Swal.fire('Error', e.message || 'Failed', 'error'); }
-    finally { setSaving(false); }
-  };
-  
-  const uploadLessonPlan = async () => {
-    if (!lessonForm.title || !lessonForm.topic) {
-      Swal.fire('Missing Fields', 'Title and topic required', 'warning');
-      return;
+    } catch (e) { 
+      Swal.fire('Error', e.message || 'Failed to report', 'error'); 
     }
-    setSaving(true);
-    try {
-      await api('/teacher/lesson-plans', { method: 'POST', body: JSON.stringify(lessonForm) });
-      Swal.fire('✅ Lesson Plan Uploaded!', 'Materials shared with students', 'success');
-      setLessonModal(false);
-      setLessonForm({ title: '', topic: '', objectives: '', materials: '', shareWithStudents: true });
-      fetchLessonPlans();
-    } catch (e) { Swal.fire('Error', e.message || 'Failed', 'error'); }
     finally { setSaving(false); }
   };
   
@@ -354,7 +442,9 @@ const TeacherDashboard = () => {
       await api('/teacher/attendance', { method: 'POST', body: JSON.stringify(attendanceForm) });
       Swal.fire('✅ Attendance Saved!', 'Attendance recorded successfully', 'success');
       setAttendanceModal(false);
-    } catch (e) { Swal.fire('Error', e.message || 'Failed', 'error'); }
+    } catch (e) { 
+      Swal.fire('Error', e.message || 'Failed to save', 'error'); 
+    }
     finally { setSaving(false); }
   };
   
@@ -365,12 +455,9 @@ const TeacherDashboard = () => {
   
   const pendingAssignments = assignments.filter(a => new Date(a.dueDate) > new Date()).length;
   const totalStudents = students.length;
- const today = new Date().toLocaleDateString('en-RW', { 
-  weekday: 'long', 
-  year: 'numeric', 
-  month: 'long', 
-  day: 'numeric' 
-});
+  const today = getFormattedDate();
+  const todayName = getWeekdayLower();
+  
   // Sample timetable data
   const timetable = [
     { time: '8:00 - 8:45', monday: 'Mathematics - S3A', tuesday: 'Physics - S4B', wednesday: 'Mathematics - S3A', thursday: 'Staff Meeting', friday: 'Mathematics - S3A' },
@@ -382,8 +469,6 @@ const TeacherDashboard = () => {
     { time: '12:30 - 13:15', monday: 'Planning Time', tuesday: 'Physics Lab', wednesday: 'Department Meeting', thursday: 'Extra Class', friday: 'Free Period' },
     { time: '13:15 - 14:00', monday: 'Planning Time', tuesday: 'Grading', wednesday: 'Planning Time', thursday: 'Grading', friday: 'Early Dismissal' }
   ];
-  
- const todayName = new Date().toLocaleDateString('en-US', { weekday: 'long' }).toLowerCase(); 
   
   const menuItems = [
     { id: 'overview', label: 'Dashboard', icon: 'fas fa-chart-line' },
@@ -417,6 +502,8 @@ const TeacherDashboard = () => {
         ::-webkit-scrollbar{width:5px;height:5px}::-webkit-scrollbar-thumb{background:#ccc;border-radius:10px}
         .sent-bubble{background:#1a3a5c;color:white;border-radius:18px 18px 4px 18px;padding:10px 15px;max-width:70%;align-self:flex-end;font-size:13px}
         .recv-bubble{background:white;color:#333;border-radius:18px 18px 18px 4px;padding:10px 15px;max-width:70%;align-self:flex-start;font-size:13px;box-shadow:0 1px 4px rgba(0,0,0,.08)}
+        button, .btn-hover{cursor:pointer;transition:all 0.2s ease}
+        button:hover, .btn-hover:hover{filter:brightness(1.05);transform:translateY(-1px)}
         @media(max-width:768px){.hide-mobile{display:none!important}}
       `}</style>
 
@@ -448,7 +535,9 @@ const TeacherDashboard = () => {
           })}
         </nav>
         <div style={{ padding: 12, borderTop: '1px solid rgba(255,255,255,.08)', flexShrink: 0 }}>
-          <button onClick={() => { localStorage.clear(); navigate('/portal/login'); }} style={{ display: 'flex', alignItems: 'center', gap: 10, width: '100%', padding: '9px 12px', background: 'rgba(231,76,60,.2)', border: '1px solid rgba(231,76,60,.3)', borderRadius: 9, color: '#ff8a80', cursor: 'pointer', fontSize: 13 }}>
+          <button onClick={() => { localStorage.clear(); navigate('/portal/login'); }} style={{ display: 'flex', alignItems: 'center', gap: 10, width: '100%', padding: '9px 12px', background: 'rgba(231,76,60,.2)', border: '1px solid rgba(231,76,60,.3)', borderRadius: 9, color: '#ff8a80', cursor: 'pointer', fontSize: 13, transition: 'all 0.2s' }}
+            onMouseEnter={e => { e.currentTarget.style.background = 'rgba(231,76,60,.4)'; e.currentTarget.style.transform = 'translateY(-1px)'; }}
+            onMouseLeave={e => { e.currentTarget.style.background = 'rgba(231,76,60,.2)'; e.currentTarget.style.transform = ''; }}>
             <i className="fas fa-sign-out-alt" style={{ fontSize: 13 }} />{(sidebarOpen || isMobile) && 'Logout'}
           </button>
         </div>
@@ -459,14 +548,20 @@ const TeacherDashboard = () => {
         {/* Top bar */}
         <div style={{ background: 'white', padding: '11px 22px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #eee', position: 'sticky', top: 0, zIndex: 100, boxShadow: '0 1px 8px rgba(0,0,0,.05)' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-            {isMobile && <button onClick={() => setMobileOpen(!mobileOpen)} style={{ background: '#1a3a5c', color: 'white', border: 'none', padding: '7px 10px', borderRadius: 8, cursor: 'pointer' }}><i className="fas fa-bars" /></button>}
+            {isMobile && <button onClick={() => setMobileOpen(!mobileOpen)} style={{ background: '#1a3a5c', color: 'white', border: 'none', padding: '7px 10px', borderRadius: 8, cursor: 'pointer', transition: 'all 0.2s' }}
+              onMouseEnter={e => e.currentTarget.style.filter = 'brightness(1.1)'}
+              onMouseLeave={e => e.currentTarget.style.filter = ''}>
+              <i className="fas fa-bars" />
+            </button>}
             <div>
               <div style={{ fontSize: 10, color: '#aaa', letterSpacing: .5 }}>ESSA NYARUGUNGA</div>
               <div style={{ fontSize: 15, fontWeight: 600, color: '#1a3a5c', fontFamily: 'Georgia, serif' }}>{menuItems.find(m => m.id === activeTab)?.label || 'Dashboard'}</div>
             </div>
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-            {unread > 0 && <button onClick={() => setActiveTab('messages')} style={{ position: 'relative', background: 'none', border: 'none', cursor: 'pointer', color: '#888', fontSize: 17 }}>
+            {unread > 0 && <button onClick={() => setActiveTab('messages')} style={{ position: 'relative', background: 'none', border: 'none', cursor: 'pointer', color: '#888', fontSize: 17, transition: 'all 0.2s' }}
+              onMouseEnter={e => e.currentTarget.style.color = '#1a3a5c'}
+              onMouseLeave={e => e.currentTarget.style.color = '#888'}>
               <i className="fas fa-bell" />
               <span style={{ position: 'absolute', top: -4, right: -4, background: '#e74c3c', color: 'white', borderRadius: '50%', fontSize: 9, width: 15, height: 15, display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700 }}>{unread}</span>
             </button>}
@@ -557,7 +652,9 @@ const TeacherDashboard = () => {
                 {classes.map(cls => {
                   const classStudents = students.filter(s => s.classId?._id === cls._id);
                   return (
-                    <div key={cls._id} style={{ background: 'white', borderRadius: 14, padding: 18, boxShadow: '0 2px 10px rgba(0,0,0,.05)', borderLeft: `4px solid #9b59b6` }}>
+                    <div key={cls._id} style={{ background: 'white', borderRadius: 14, padding: 18, boxShadow: '0 2px 10px rgba(0,0,0,.05)', borderLeft: `4px solid #9b59b6`, transition: 'all 0.2s' }}
+                      onMouseEnter={e => e.currentTarget.style.transform = 'translateY(-2px)'}
+                      onMouseLeave={e => e.currentTarget.style.transform = ''}>
                       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 12 }}>
                         <div>
                           <h3 style={{ margin: 0, fontSize: 16, color: '#1a3a5c' }}>{cls.grade} {cls.className}</h3>
@@ -566,7 +663,8 @@ const TeacherDashboard = () => {
                         <Badge text={`${classStudents.length} students`} color="#3498db" bg="#e3f2fd" />
                       </div>
                       <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 12 }}>
-                        <Btn small onClick={() => openAttendanceModal(cls)} icon="fas fa-calendar-check" color="#27ae60">Take Attendance</Btn>
+                        <Btn small onClick={() => { setSelectedClass(cls); setStudentModal(true); }} icon="fas fa-user-plus" color="#27ae60">Add Student</Btn>
+                        <Btn small onClick={() => openAttendanceModal(cls)} icon="fas fa-calendar-check" color="#f39c12">Take Attendance</Btn>
                         <Btn small onClick={() => { setAssignmentForm(prev => ({ ...prev, classId: cls._id })); setAssignmentModal(true); }} icon="fas fa-tasks" color="#9b59b6">Create Assignment</Btn>
                       </div>
                     </div>
@@ -589,7 +687,9 @@ const TeacherDashboard = () => {
                 {assignments.map(a => {
                   const isDue = new Date(a.dueDate) < new Date();
                   return (
-                    <div key={a._id} style={{ background: 'white', borderRadius: 12, padding: '16px 18px', borderLeft: `4px solid ${isDue ? '#e74c3c' : '#27ae60'}`, boxShadow: '0 2px 8px rgba(0,0,0,.04)' }}>
+                    <div key={a._id} style={{ background: 'white', borderRadius: 12, padding: '16px 18px', borderLeft: `4px solid ${isDue ? '#e74c3c' : '#27ae60'}`, boxShadow: '0 2px 8px rgba(0,0,0,.04)', transition: 'all 0.2s' }}
+                      onMouseEnter={e => e.currentTarget.style.transform = 'translateX(2px)'}
+                      onMouseLeave={e => e.currentTarget.style.transform = ''}>
                       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 8 }}>
                         <div>
                           <h3 style={{ margin: 0, fontSize: 14, color: '#1a3a5c' }}>{a.title}</h3>
@@ -599,7 +699,7 @@ const TeacherDashboard = () => {
                             <Badge text={`${a.totalPoints} pts`} color="#3498db" bg="#e3f2fd" />
                           </div>
                         </div>
-                        <Btn small icon="fas fa-eye" color="#3498db" onClick={() => Swal.fire({ title: a.title, html: `<p>${a.description || 'No description'}</p>`, width: 500 })}>View</Btn>
+                        <Btn small icon="fas fa-eye" color="#3498db" onClick={() => Swal.fire({ title: a.title, html: `<p>${a.description || 'No description'}</p>${a.fileUrl ? `<a href="${a.fileUrl}" target="_blank">Download Attachment</a>` : ''}`, width: 500 })}>View</Btn>
                       </div>
                       {a.description && <p style={{ margin: '8px 0 0', fontSize: 12, color: '#666' }}>{a.description.substring(0, 100)}...</p>}
                     </div>
@@ -665,11 +765,14 @@ const TeacherDashboard = () => {
               <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
                 {lessonPlans.length === 0 && <div style={{ textAlign: 'center', padding: 50, background: 'white', borderRadius: 14, color: '#bbb' }}><i className="fas fa-book" style={{ fontSize: 36, display: 'block', marginBottom: 10, opacity: .3 }} />No study materials uploaded yet</div>}
                 {lessonPlans.map(lp => (
-                  <div key={lp._id} style={{ background: 'white', borderRadius: 12, padding: '16px 18px', boxShadow: '0 2px 8px rgba(0,0,0,.04)' }}>
+                  <div key={lp._id} style={{ background: 'white', borderRadius: 12, padding: '16px 18px', boxShadow: '0 2px 8px rgba(0,0,0,.04)', transition: 'all 0.2s' }}
+                    onMouseEnter={e => e.currentTarget.style.transform = 'translateX(2px)'}
+                    onMouseLeave={e => e.currentTarget.style.transform = ''}>
                     <h3 style={{ margin: 0, fontSize: 14, color: '#1a3a5c' }}>{lp.title}</h3>
                     <p style={{ margin: '5px 0 0', fontSize: 12, color: '#666' }}>{lp.topic}</p>
-                    <div style={{ display: 'flex', gap: 8, marginTop: 10 }}>
+                    <div style={{ display: 'flex', gap: 8, marginTop: 10, flexWrap: 'wrap' }}>
                       <Badge text={lp.shareWithStudents ? 'Shared with Students' : 'Draft'} color={lp.shareWithStudents ? '#27ae60' : '#f39c12'} bg={lp.shareWithStudents ? '#e8f5e9' : '#fff3e0'} />
+                      {lp.fileUrl && <Btn small icon="fas fa-download" color="#3498db" onClick={() => window.open(lp.fileUrl)}>Download</Btn>}
                     </div>
                   </div>
                 ))}
@@ -686,7 +789,9 @@ const TeacherDashboard = () => {
                 {announcements.map(ann => {
                   const pc = ann.priority === 'urgent' ? '#e74c3c' : ann.priority === 'high' ? '#f39c12' : '#27ae60';
                   return (
-                    <div key={ann._id} style={{ background: 'white', borderRadius: 12, padding: '15px 18px', borderLeft: `4px solid ${pc}`, boxShadow: '0 2px 8px rgba(0,0,0,.04)' }}>
+                    <div key={ann._id} style={{ background: 'white', borderRadius: 12, padding: '15px 18px', borderLeft: `4px solid ${pc}`, boxShadow: '0 2px 8px rgba(0,0,0,.04)', transition: 'all 0.2s' }}
+                      onMouseEnter={e => e.currentTarget.style.transform = 'translateX(2px)'}
+                      onMouseLeave={e => e.currentTarget.style.transform = ''}>
                       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 8 }}>
                         <h3 style={{ margin: 0, fontSize: 14, color: '#1a3a5c' }}>{ann.title}</h3>
                         <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
@@ -757,7 +862,11 @@ const TeacherDashboard = () => {
                           <textarea value={msgText} onChange={e => setMsgText(e.target.value)} placeholder={`Message ${selectedUser.fullName}…`} rows={2}
                             onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(); } }}
                             style={{ flex: 1, padding: '9px 12px', border: '1.5px solid #e0e0e0', borderRadius: 12, resize: 'none', fontFamily: 'inherit', fontSize: 13, outline: 'none', boxSizing: 'border-box' }} />
-                          <button onClick={sendMessage} disabled={!msgText.trim()} style={{ width: 40, height: 40, background: msgText.trim() ? '#1a3a5c' : '#ddd', border: 'none', borderRadius: '50%', cursor: msgText.trim() ? 'pointer' : 'default', color: 'white', fontSize: 15, flexShrink: 0 }}><i className="fas fa-paper-plane" /></button>
+                          <button onClick={sendMessage} disabled={!msgText.trim()} style={{ width: 40, height: 40, background: msgText.trim() ? '#1a3a5c' : '#ddd', border: 'none', borderRadius: '50%', cursor: msgText.trim() ? 'pointer' : 'default', color: 'white', fontSize: 15, flexShrink: 0, transition: 'all 0.2s' }}
+                            onMouseEnter={e => { if (msgText.trim()) e.currentTarget.style.background = '#ffc107'; }}
+                            onMouseLeave={e => { if (msgText.trim()) e.currentTarget.style.background = '#1a3a5c'; }}>
+                            <i className="fas fa-paper-plane" />
+                          </button>
                         </div>
                       </>
                     ) : <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', color: '#ccc', gap: 10 }}><i className="fas fa-comments" style={{ fontSize: 44, opacity: .3 }} /><div style={{ fontSize: 14 }}>Select a user to message</div></div>}
@@ -833,10 +942,26 @@ const TeacherDashboard = () => {
         </Field>
         <Field label="Description"><Txt value={assignmentForm.description} rows={4} placeholder="Instructions for students..." onChange={e => setAssignmentForm(p => ({ ...p, description: e.target.value }))} /></Field>
         <Field label="Due Date" required><Inp type="datetime-local" value={assignmentForm.dueDate} onChange={e => setAssignmentForm(p => ({ ...p, dueDate: e.target.value }))} /></Field>
-        <Field label="Total Points"><Inp type="number" value={assignmentForm.totalPoints} onChange={e => setAssignmentForm(p => ({ ...p, totalPoints: parseInt(e.target.value) }))} /></Field>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+          <Field label="Total Points"><Inp type="number" value={assignmentForm.totalPoints} onChange={e => setAssignmentForm(p => ({ ...p, totalPoints: parseInt(e.target.value) }))} /></Field>
+          <Field label="Attachment (PDF/DOC)"><input type="file" accept=".pdf,.doc,.docx,.jpg,.png" onChange={e => setAssignmentFile(e.target.files[0])} style={{ fontSize: 13, padding: '6px 0' }} /></Field>
+        </div>
         <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end', marginTop: 8 }}>
           <Btn onClick={() => setAssignmentModal(false)} color="#f0f0f0" textColor="#666">Cancel</Btn>
           <Btn onClick={createAssignment} icon="fas fa-paper-plane" color="#9b59b6" disabled={saving}>{saving ? 'Creating…' : 'Create Assignment'}</Btn>
+        </div>
+      </Modal>
+
+      {/* Add Student Modal */}
+      <Modal open={studentModal} onClose={() => setStudentModal(false)} title={`Add Student to ${selectedClass?.grade || ''} ${selectedClass?.className || ''}`} width={500}>
+        <Field label="Full Name" required><Inp value={studentForm.fullName} placeholder="Student full name" onChange={e => setStudentForm(p => ({ ...p, fullName: e.target.value }))} /></Field>
+        <Field label="Email"><Inp type="email" value={studentForm.email} placeholder="student@essa.rw" onChange={e => setStudentForm(p => ({ ...p, email: e.target.value }))} /></Field>
+        <Field label="Parent/Guardian Name"><Inp value={studentForm.parentName} placeholder="Parent/Guardian name" onChange={e => setStudentForm(p => ({ ...p, parentName: e.target.value }))} /></Field>
+        <Field label="Parent Phone" required><Inp value={studentForm.parentPhone} placeholder="+250 788 000 000" onChange={e => setStudentForm(p => ({ ...p, parentPhone: e.target.value }))} /></Field>
+        <Field label="Password"><Inp type="password" value={studentForm.password} placeholder="Leave blank for auto-generate" onChange={e => setStudentForm(p => ({ ...p, password: e.target.value }))} /></Field>
+        <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end', marginTop: 8 }}>
+          <Btn onClick={() => setStudentModal(false)} color="#f0f0f0" textColor="#666">Cancel</Btn>
+          <Btn onClick={addStudent} icon="fas fa-user-plus" color="#27ae60" disabled={saving}>{saving ? 'Adding…' : 'Add Student'}</Btn>
         </div>
       </Modal>
 
@@ -881,8 +1006,11 @@ const TeacherDashboard = () => {
                       background: record.status === status ? (status === 'present' ? '#27ae60' : status === 'absent' ? '#e74c3c' : status === 'late' ? '#f39c12' : '#3498db') : 'white',
                       color: record.status === status ? 'white' : '#666',
                       cursor: 'pointer',
-                      fontSize: 11
+                      fontSize: 11,
+                      transition: 'all 0.2s'
                     }}
+                    onMouseEnter={e => { if (record.status !== status) e.currentTarget.style.background = '#f0f0f0'; }}
+                    onMouseLeave={e => { if (record.status !== status) e.currentTarget.style.background = 'white'; }}
                   >
                     {status.toUpperCase()}
                   </button>
@@ -903,6 +1031,7 @@ const TeacherDashboard = () => {
         <Field label="Topic/Chapter" required><Inp value={lessonForm.topic} placeholder="Topic or chapter name" onChange={e => setLessonForm(p => ({ ...p, topic: e.target.value }))} /></Field>
         <Field label="Learning Objectives"><Txt value={lessonForm.objectives} rows={2} placeholder="What students will learn..." onChange={e => setLessonForm(p => ({ ...p, objectives: e.target.value }))} /></Field>
         <Field label="Materials Needed"><Inp value={lessonForm.materials} placeholder="Required materials/resources" onChange={e => setLessonForm(p => ({ ...p, materials: e.target.value }))} /></Field>
+        <Field label="File Attachment (PDF/DOC/PPT)"><input type="file" accept=".pdf,.doc,.docx,.ppt,.pptx,.jpg,.png" onChange={e => setLessonFile(e.target.files[0])} style={{ fontSize: 13, padding: '6px 0' }} /></Field>
         <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 14 }}>
           <input type="checkbox" checked={lessonForm.shareWithStudents} onChange={e => setLessonForm(p => ({ ...p, shareWithStudents: e.target.checked }))} style={{ width: 18, height: 18 }} />
           <span style={{ fontSize: 12, color: '#666' }}>Share with students immediately</span>
