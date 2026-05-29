@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import Swal from 'sweetalert2';
 import io from 'socket.io-client';
@@ -82,7 +82,7 @@ const Btn = ({ children, onClick, icon, color = '#1a3a5c', textColor = 'white', 
   );
 };
 
-const StatCard = ({ icon, label, value, sub, accent = '#27ae60', bg = '#e8f5e9', onClick }) => (
+const StatCard = ({ icon, label, value, sub, accent = '#e74c3c', bg = '#fdecea', onClick }) => (
   <div onClick={onClick} style={{ background: 'white', borderRadius: 16, padding: '18px 20px', display: 'flex', alignItems: 'center', gap: 14, boxShadow: '0 2px 12px rgba(0,0,0,.06)', cursor: onClick ? 'pointer' : 'default', transition: 'transform .2s, box-shadow .2s', border: '1px solid #f0f0f0' }}
     onMouseEnter={e => { if (onClick) { e.currentTarget.style.transform = 'translateY(-3px)'; e.currentTarget.style.boxShadow = '0 10px 28px rgba(0,0,0,.12)'; } }}
     onMouseLeave={e => { e.currentTarget.style.transform = ''; e.currentTarget.style.boxShadow = '0 2px 12px rgba(0,0,0,.06)'; }}>
@@ -115,8 +115,64 @@ const Table = ({ cols, rows, emptyMsg = 'No data found' }) => (
 );
 const TD = ({ children, style }) => <td style={{ padding: '10px 14px', fontSize: 13, color: '#333', ...style }}>{children}</td>;
 
+// Offense categories
+const offenseCategories = {
+  minor: [
+    { value: 'tardiness', label: '⏰ Tardiness/Lateness' },
+    { value: 'uniform_violation', label: '👕 Uniform Violation' },
+    { value: 'missing_homework', label: '📚 Missing Homework' },
+    { value: 'classroom_disruption', label: '🗣️ Classroom Disruption' },
+    { value: 'littering', label: '🗑️ Littering' }
+  ],
+  moderate: [
+    { value: 'absenteeism', label: '📅 Absenteeism' },
+    { value: 'disrespect', label: '😤 Disrespect to Staff' },
+    { value: 'cheating', label: '📝 Cheating/Plagiarism' },
+    { value: 'phone_use', label: '📱 Phone in Class' },
+    { value: 'minor_fighting', label: '👊 Minor Fighting' },
+    { value: 'property_damage_minor', label: '🔨 Property Damage (Minor)' }
+  ],
+  major: [
+    { value: 'bullying', label: '😔 Bullying/Harassment' },
+    { value: 'theft', label: '💰 Theft' },
+    { value: 'substance_abuse', label: '🍺 Substance Abuse' },
+    { value: 'assault', label: '👊 Physical Assault' },
+    { value: 'vandalism', label: '🎨 Vandalism' },
+    { value: 'threats', label: '⚠️ Threatening Behavior' },
+    { value: 'exam_malpractise', label: '📄 Exam Malpractice' },
+    { value: 'criminal_activity', label: '⚖️ Criminal Activity' }
+  ]
+};
+
+// Punishment options
+const punishmentOptions = {
+  minor: [
+    { value: 'verbal_warning', label: '📢 Verbal Warning', duration: 'Immediate' },
+    { value: 'written_warning', label: '📝 Written Warning', duration: 'Recorded' },
+    { value: 'extra_assignment', label: '📚 Extra Assignment', duration: '1 week' },
+    { value: 'cleanup_duty', label: '🧹 Cleanup Duty', duration: '3 days' },
+    { value: 'detention_1h', label: '⏰ Detention (1 hour)', duration: '1 day' }
+  ],
+  moderate: [
+    { value: 'community_service', label: '🤝 Community Service', duration: '2-4 weeks' },
+    { value: 'loss_privileges', label: '🚫 Loss of Privileges', duration: '2 weeks' },
+    { value: 'parent_conference', label: '👪 Parent Conference', duration: 'Scheduled' },
+    { value: 'counseling', label: '💬 Counseling', duration: '4 sessions' },
+    { value: 'academic_probation', label: '📉 Academic Probation', duration: '1 term' },
+    { value: 'detention_1week', label: '⏰ Detention (1 week)', duration: '1 week' }
+  ],
+  major: [
+    { value: 'suspension_3days', label: '🚫 Suspension (3 days)', duration: '3 days' },
+    { value: 'suspension_1week', label: '🚫 Suspension (1 week)', duration: '1 week' },
+    { value: 'suspension_2weeks', label: '🚫 Suspension (2 weeks)', duration: '2 weeks' },
+    { value: 'suspension_1month', label: '🚫 Suspension (1 month)', duration: '1 month' },
+    { value: 'expulsion', label: '❌ Expulsion (Permanent)', duration: 'Permanent', requiresPrincipal: true },
+    { value: 'legal_referral', label: '⚖️ Legal Referral', duration: 'N/A', requiresPrincipal: true }
+  ]
+};
+
 // ═══════════════════════════════════════════════════════════════════
-const AcademicAdminDashboard = () => {
+const DisciplineAdminDashboard = () => {
   const navigate = useNavigate();
   const msgEndRef = useRef(null);
 
@@ -126,33 +182,45 @@ const AcademicAdminDashboard = () => {
   const [isMobile, setIsMobile] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
   const [loading, setLoading] = useState(true);
-
-  // data
-  const [teachers, setTeachers] = useState([]);
-  const [classes, setClasses] = useState([]);
-  const [students, setStudents] = useState([]);
-  const [news, setNews] = useState([]);
-  const [gallery, setGallery] = useState([]);
-  const [announcements, setAnnouncements] = useState([]);
-  const [studentPerformance, setStudentPerformance] = useState([]);
-  const [classPerformance, setClassPerformance] = useState([]);
-  const [applications, setApplications] = useState([]);
-
-  // modals
-  const [teacherModal, setTeacherModal] = useState(false);
-  const [classModal, setClassModal] = useState(false);
-  const [studentModal, setStudentModal] = useState(false);
-  const [newsModal, setNewsModal] = useState(false);
-  const [galleryModal, setGalleryModal] = useState(false);
-  const [teacherForm, setTeacherForm] = useState({ fullName: '', email: '', password: '', subject: '', phone: '' });
-  const [classForm, setClassForm] = useState({ className: '', grade: 'S1', academicYear: new Date().getFullYear().toString(), teacherId: '' });
-  const [studentForm, setStudentForm] = useState({ fullName: '', email: '', classId: '', parentName: '', parentPhone: '' });
-  const [newsForm, setNewsForm] = useState({ title: '', summary: '', content: '', category: 'news', tags: '' });
-  const [galleryForm, setGalleryForm] = useState({ title: '', category: 'events', description: '' });
-  const [newsImageFile, setNewsImageFile] = useState(null);
-  const [galleryImageFile, setGalleryImageFile] = useState(null);
   const [saving, setSaving] = useState(false);
 
+  // data
+  const [disciplineCases, setDisciplineCases] = useState([]);
+  const [permissions, setPermissions] = useState([]);
+  const [announcements, setAnnouncements] = useState([]);
+  const [students, setStudents] = useState([]);
+  const [classes, setClasses] = useState([]);
+  const [teachers, setTeachers] = useState([]);
+  const [disciplineStats, setDisciplineStats] = useState({ total: 0, pending: 0, resolved: 0, suspended: 0, probation: 0 });
+  
+  // modals
+  const [incidentModal, setIncidentModal] = useState(false);
+  const [permissionModal, setPermissionModal] = useState(false);
+  const [announcementModal, setAnnouncementModal] = useState(false);
+  const [massMessageModal, setMassMessageModal] = useState(false);
+  const [reportModal, setReportModal] = useState(false);
+  const [selectedCase, setSelectedCase] = useState(null);
+  const [selectedStudent, setSelectedStudent] = useState(null);
+  
+  // forms
+  const [incidentForm, setIncidentForm] = useState({
+    studentId: '', category: '', description: '', severity: 'moderate', evidence: ''
+  });
+  const [permissionForm, setPermissionForm] = useState({
+    studentId: '', type: 'medical', reason: '', fromDate: '', toDate: '', attachment: ''
+  });
+  const [announcementForm, setAnnouncementForm] = useState({
+    title: '', content: '', audience: 'all', priority: 'normal'
+  });
+  const [messageForm, setMessageForm] = useState({
+    subject: '', content: '', audience: 'all', messageType: 'email'
+  });
+  
+  // filters
+  const [caseFilter, setCaseFilter] = useState('all');
+  const [classFilter, setClassFilter] = useState('');
+  const [searchTerm, setSearchTerm] = useState('');
+  
   // messaging
   const [msgUsers, setMsgUsers] = useState([]);
   const [selectedUser, setSelectedUser] = useState(null);
@@ -160,10 +228,10 @@ const AcademicAdminDashboard = () => {
   const [msgText, setMsgText] = useState('');
   const [msgTab, setMsgTab] = useState('inbox');
   const [unread, setUnread] = useState(0);
-  const [msgSearch, setMsgSearch] = useState('');
   const [socket, setSocket] = useState(null);
+  const [msgSearch, setMsgSearch] = useState('');
 
-  const userName = localStorage.getItem('userName') || 'Academic Admin';
+  const userName = localStorage.getItem('userName') || 'Discipline Admin';
   const userId = localStorage.getItem('userId');
 
   // responsive
@@ -179,13 +247,14 @@ const AcademicAdminDashboard = () => {
     setSocket(sock);
     if (userId) sock.emit('join', userId);
     sock.on('new_message', () => { fetchUnread(); fetchMsgUsers(); });
+    sock.on('newMessage', () => { fetchUnread(); fetchMsgUsers(); });
     return () => sock.disconnect();
   }, [userId]);
 
   // auth + load
   useEffect(() => {
     const token = getToken(); const role = localStorage.getItem('userRole');
-    if (!token || role !== 'academic_admin') { navigate('/portal/login'); return; }
+    if (!token || role !== 'discipline_admin') { navigate('/portal/login'); return; }
     loadAll();
   }, [navigate]);
 
@@ -199,185 +268,249 @@ const AcademicAdminDashboard = () => {
   }, []);
 
   const loadAll = () => Promise.all([
-    fetchTeachers(), fetchClasses(), fetchStudents(), fetchNews(),
-    fetchGallery(), fetchAnnouncements(), fetchPerformance(),
-    fetchApplications(), fetchMsgUsers(), fetchUnread(),
+    fetchDisciplineCases(), fetchPermissions(), fetchAnnouncements(),
+    fetchStudents(), fetchClasses(), fetchTeachers(),
+    fetchMsgUsers(), fetchUnread()
   ]).finally(() => setLoading(false));
 
-  const fetchTeachers = () => api('/academic-admin/teachers-list').then(d => setTeachers(Array.isArray(d) ? d : [])).catch(() => {});
-  const fetchClasses = () => api('/academic-admin/classes').then(d => setClasses(Array.isArray(d) ? d : [])).catch(() => {});
-  const fetchStudents = () => api('/academic-admin/students').then(d => setStudents(Array.isArray(d) ? d : [])).catch(() => {});
-  const fetchNews = () => api('/academic-admin/news').then(d => setNews(Array.isArray(d) ? d : [])).catch(() => {});
-  const fetchGallery = () => api('/academic-admin/gallery').then(d => setGallery(Array.isArray(d) ? d : [])).catch(() => {});
-  const fetchAnnouncements = () => api('/announcements').then(d => setAnnouncements(Array.isArray(d) ? d : [])).catch(() => {});
-  const fetchApplications = () => api('/academic-admin/applications').then(d => setApplications(Array.isArray(d) ? d : [])).catch(() => {});
-  const fetchPerformance = () => {
-    api('/academic-admin/students-performance').then(d => setStudentPerformance(Array.isArray(d) ? d : [])).catch(() => {});
-    api('/academic-admin/class-performance').then(d => setClassPerformance(Array.isArray(d) ? d : [])).catch(() => {});
-  };
-  const fetchMsgUsers = () => api('/messages/users').then(d => { const all = Object.values(d.users || d || {}).flat(); setMsgUsers(all); }).catch(() => {});
+  const fetchDisciplineCases = () => api('/discipline-admin/cases').then(d => {
+    const cases = Array.isArray(d) ? d : [];
+    setDisciplineCases(cases);
+    const pending = cases.filter(c => c.status === 'pending').length;
+    const resolved = cases.filter(c => c.status === 'resolved').length;
+    const suspended = cases.filter(c => c.action?.includes('suspension')).length;
+    setDisciplineStats({ total: cases.length, pending, resolved, suspended, probation: 0 });
+  }).catch(() => setDisciplineCases([]));
+  
+  const fetchPermissions = () => api('/permissions').then(d => setPermissions(Array.isArray(d) ? d : [])).catch(() => setPermissions([]));
+  const fetchAnnouncements = () => api('/announcements').then(d => setAnnouncements(Array.isArray(d) ? d : [])).catch(() => setAnnouncements([]));
+  const fetchStudents = () => api('/academic-admin/students').then(d => setStudents(Array.isArray(d) ? d : [])).catch(() => setStudents([]));
+  const fetchClasses = () => api('/academic-admin/classes').then(d => setClasses(Array.isArray(d) ? d : [])).catch(() => setClasses([]));
+  const fetchTeachers = () => api('/academic-admin/teachers-list').then(d => setTeachers(Array.isArray(d) ? d : [])).catch(() => setTeachers([]));
+  
+  const fetchMsgUsers = () => api('/messages/users').then(d => {
+    const all = Object.values(d.users || d || {}).flat();
+    setMsgUsers(all);
+  }).catch(() => setMsgUsers([]));
+  
   const fetchUnread = () => api('/messages/unread-count').then(d => setUnread(d.count || 0)).catch(() => {});
-  const fetchConversation = (uid) => api(`/messages/conversation/${uid}`).then(d => setMessages(Array.isArray(d.messages) ? d.messages : [])).catch(() => {});
-
-  // ─── ACTIONS ──────────────────────────────────────────────────────
-  const createTeacher = async () => {
-    if (!teacherForm.fullName || !teacherForm.email) { Swal.fire('Missing Fields', 'Name and Email are required', 'warning'); return; }
-    setSaving(true);
-    try {
-      await api('/academic-admin/create-teacher-credentials', { method: 'POST', body: JSON.stringify(teacherForm) });
-      Swal.fire('✅ Teacher Created!', `<b>${teacherForm.fullName}</b><br>Email: <code>${teacherForm.email}</code><br>Password: <code>${teacherForm.password || 'teacher123'}</code>`, 'success');
-      setTeacherModal(false); setTeacherForm({ fullName: '', email: '', password: '', subject: '', phone: '' });
-      fetchTeachers();
-    } catch (e) { Swal.fire('Error', e.message || 'Failed', 'error'); }
-    finally { setSaving(false); }
-  };
-
-  const deleteTeacher = async (t) => {
-    const ok = await Swal.fire({ title: `Delete ${t.fullName}?`, icon: 'warning', showCancelButton: true, confirmButtonColor: '#e74c3c', confirmButtonText: 'Delete' });
-    if (!ok.isConfirmed) return;
-    await api(`/academic-admin/teachers/${t._id}`, { method: 'DELETE' });
-    Swal.fire('Deleted!', '', 'success'); fetchTeachers();
-  };
-
-  const createClass = async () => {
-    if (!classForm.className || !classForm.academicYear) { Swal.fire('Missing Fields', 'Class name and academic year required', 'warning'); return; }
-    setSaving(true);
-    try {
-      await api('/academic-admin/classes', { method: 'POST', body: JSON.stringify({ ...classForm, teacherId: classForm.teacherId || null }) });
-      Swal.fire('✅ Class Created!', '', 'success');
-      setClassModal(false); setClassForm({ className: '', grade: 'S1', academicYear: new Date().getFullYear().toString(), teacherId: '' });
-      fetchClasses();
-    } catch (e) { Swal.fire('Error', e.message || 'Failed', 'error'); }
-    finally { setSaving(false); }
-  };
-
-  const deleteClass = async (c) => {
-    const ok = await Swal.fire({ title: `Delete ${c.grade} ${c.className}?`, icon: 'warning', showCancelButton: true, confirmButtonColor: '#e74c3c', confirmButtonText: 'Delete' });
-    if (!ok.isConfirmed) return;
-    await api(`/academic-admin/classes/${c._id}`, { method: 'DELETE' });
-    Swal.fire('Deleted!', '', 'success'); fetchClasses();
-  };
-
-  const assignTeacher = async (cls) => {
-    const opts = { '': '— Remove Teacher —' };
-    teachers.forEach(t => { opts[t._id] = `${t.fullName} (${t.subject || 'General'})`; });
-    const { value } = await Swal.fire({ title: `Assign Teacher to ${cls.grade} ${cls.className}`, input: 'select', inputOptions: opts, showCancelButton: true, confirmButtonText: 'Assign', confirmButtonColor: '#27ae60' });
-    if (value === undefined) return;
-    try {
-      await api(`/academic-admin/classes/${cls._id}/assign-teacher`, { method: 'PUT', body: JSON.stringify({ teacherId: value || null }) });
-      Swal.fire('✅ Updated!', '', 'success'); fetchClasses();
-    } catch (e) { Swal.fire('Error', e.message, 'error'); }
-  };
-
-  const createStudent = async () => {
-    if (!studentForm.fullName) { Swal.fire('Missing Fields', 'Student name required', 'warning'); return; }
-    setSaving(true);
-    try {
-      await api('/academic-admin/students', { method: 'POST', body: JSON.stringify(studentForm) });
-      Swal.fire('✅ Student Added!', '', 'success');
-      setStudentModal(false); setStudentForm({ fullName: '', email: '', classId: '', parentName: '', parentPhone: '' });
-      fetchStudents();
-    } catch (e) { Swal.fire('Error', e.message || 'Failed', 'error'); }
-    finally { setSaving(false); }
-  };
-
-  const deleteStudent = async (s) => {
-    const ok = await Swal.fire({ title: `Remove ${s.fullName}?`, icon: 'warning', showCancelButton: true, confirmButtonColor: '#e74c3c', confirmButtonText: 'Delete' });
-    if (!ok.isConfirmed) return;
-    await api(`/academic-admin/students/${s._id}`, { method: 'DELETE' });
-    Swal.fire('Deleted!', '', 'success'); fetchStudents();
-  };
-
-  const postNews = async () => {
-    if (!newsForm.title || !newsForm.summary) { Swal.fire('Missing Fields', 'Title and summary required', 'warning'); return; }
-    setSaving(true);
-    try {
-      const token = getToken();
-      const fd = new FormData();
-      Object.entries(newsForm).forEach(([k, v]) => fd.append(k, v));
-      if (newsImageFile) fd.append('image', newsImageFile);
-      const res = await fetch(`${API_URL}/academic-admin/news`, { method: 'POST', headers: { Authorization: `Bearer ${token}` }, body: fd });
-      if (!res.ok) throw await res.json();
-      Swal.fire('✅ Published!', 'News posted successfully', 'success');
-      setNewsModal(false); setNewsForm({ title: '', summary: '', content: '', category: 'news', tags: '' }); setNewsImageFile(null);
-      fetchNews();
-    } catch (e) { Swal.fire('Error', e.message || 'Failed', 'error'); }
-    finally { setSaving(false); }
-  };
-
-  const deleteNews = async (item) => {
-    const ok = await Swal.fire({ title: `Delete "${item.title}"?`, icon: 'warning', showCancelButton: true, confirmButtonColor: '#e74c3c', confirmButtonText: 'Delete' });
-    if (!ok.isConfirmed) return;
-    await api(`/academic-admin/news/${item._id}`, { method: 'DELETE' });
-    Swal.fire('Deleted!', '', 'success'); fetchNews();
-  };
-
-  const addGalleryImage = async () => {
-    if (!galleryForm.title || !galleryImageFile) { Swal.fire('Missing Fields', 'Title and image required', 'warning'); return; }
-    setSaving(true);
-    try {
-      const token = getToken();
-      const fd = new FormData();
-      Object.entries(galleryForm).forEach(([k, v]) => fd.append(k, v));
-      fd.append('image', galleryImageFile);
-      const res = await fetch(`${API_URL}/academic-admin/gallery`, { method: 'POST', headers: { Authorization: `Bearer ${token}` }, body: fd });
-      if (!res.ok) throw await res.json();
-      Swal.fire('✅ Added!', 'Image added to gallery', 'success');
-      setGalleryModal(false); setGalleryForm({ title: '', category: 'events', description: '' }); setGalleryImageFile(null);
-      fetchGallery();
-    } catch (e) { Swal.fire('Error', e.message || 'Failed', 'error'); }
-    finally { setSaving(false); }
-  };
-
-  const deleteGallery = async (img) => {
-    const ok = await Swal.fire({ title: `Delete "${img.title}"?`, icon: 'warning', showCancelButton: true, confirmButtonColor: '#e74c3c', confirmButtonText: 'Delete' });
-    if (!ok.isConfirmed) return;
-    await api(`/academic-admin/gallery/${img._id}`, { method: 'DELETE' });
-    Swal.fire('Deleted!', '', 'success'); fetchGallery();
-  };
-
-  const reviewApplication = async (app, status) => {
-    const { value: reviewNotes } = await Swal.fire({ title: `${status === 'accepted' ? 'Accept' : 'Reject'} Application`, input: 'textarea', inputLabel: 'Notes (optional)', showCancelButton: true, confirmButtonText: status === 'accepted' ? '✅ Accept' : '❌ Reject', confirmButtonColor: status === 'accepted' ? '#27ae60' : '#e74c3c' });
-    if (reviewNotes === undefined) return;
-    await api(`/academic-admin/applications/${app._id}/status`, { method: 'PUT', body: JSON.stringify({ status, reviewNotes: reviewNotes || '' }) });
-    Swal.fire('Updated!', '', 'success'); fetchApplications();
-  };
-
+  const fetchConversation = (uid) => api(`/messages/conversation/${uid}`).then(d => setMessages(Array.isArray(d.messages) ? d.messages : [])).catch(() => setMessages([]));
+  
   const sendMessage = async () => {
     if (!msgText.trim() || !selectedUser) return;
     try {
-      const res = await api('/messages/send', { method: 'POST', body: JSON.stringify({ recipientId: selectedUser._id, subject: 'Direct Message', content: msgText.trim() }) });
+      const res = await api('/messages/send', {
+        method: 'POST',
+        body: JSON.stringify({ recipientId: selectedUser._id, subject: 'Direct Message', content: msgText.trim() })
+      });
       setMessages(prev => [...prev, res.message]);
       setMsgText('');
       if (socket) socket.emit('sendMessage', { receiverId: selectedUser._id, ...res.message });
       fetchUnread();
-    } catch {}
+    } catch (e) { console.error('Send error:', e); }
   };
+  
+  const sendMassMessage = async () => {
+    if (!messageForm.subject || !messageForm.content) {
+      Swal.fire('Missing Fields', 'Subject and content required', 'warning');
+      return;
+    }
+    setSaving(true);
+    try {
+      // Get recipients based on audience
+      let recipients = [];
+      if (messageForm.audience === 'all_parents') {
+        recipients = students.map(s => ({ id: s.userId, name: s.parentName }));
+      } else if (messageForm.audience === 'all_teachers') {
+        recipients = teachers;
+      } else if (messageForm.audience === 'all_students') {
+        recipients = students;
+      }
+      
+      // Send mass message (batch)
+      for (const recipient of recipients.slice(0, 50)) { // Limit to 50 per batch
+        if (recipient.id) {
+          await api('/messages/send', {
+            method: 'POST',
+            body: JSON.stringify({ recipientId: recipient.id, subject: messageForm.subject, content: messageForm.content })
+          }).catch(() => {});
+        }
+      }
+      Swal.fire('✅ Messages Sent!', `Messages sent to ${messageForm.audience.replace(/_/g, ' ')}`, 'success');
+      setMassMessageModal(false);
+      setMessageForm({ subject: '', content: '', audience: 'all_parents', messageType: 'email' });
+    } catch (e) { Swal.fire('Error', e.message || 'Failed', 'error'); }
+    finally { setSaving(false); }
+  };
+  
+  const reportIncident = async () => {
+    if (!incidentForm.studentId || !incidentForm.category || !incidentForm.description) {
+      Swal.fire('Missing Fields', 'Please fill all required fields', 'warning');
+      return;
+    }
+    setSaving(true);
+    try {
+      const student = students.find(s => s._id === incidentForm.studentId);
+      await api('/discipline-admin/cases', {
+        method: 'POST',
+        body: JSON.stringify({
+          studentId: incidentForm.studentId,
+          studentName: student?.fullName || 'Unknown',
+          className: student?.classId?.className || '',
+          category: incidentForm.category,
+          description: incidentForm.description,
+          status: 'pending'
+        })
+      });
+      Swal.fire('✅ Incident Reported!', 'Case has been recorded', 'success');
+      setIncidentModal(false);
+      setIncidentForm({ studentId: '', category: '', description: '', severity: 'moderate', evidence: '' });
+      fetchDisciplineCases();
+    } catch (e) { Swal.fire('Error', e.message || 'Failed', 'error'); }
+    finally { setSaving(false); }
+  };
+  
+  const takeAction = async (caseItem) => {
+    const actionOptions = {
+      warning: '📢 Warning',
+      detention: '⏰ Detention',
+      community_service: '🤝 Community Service',
+      suspension: '🚫 Suspension',
+      expulsion: '❌ Expulsion'
+    };
+    
+    const { value: action } = await Swal.fire({
+      title: `Take Action - ${caseItem.studentName}`,
+      text: caseItem.description,
+      input: 'select',
+      inputOptions: actionOptions,
+      inputPlaceholder: 'Select punishment',
+      showCancelButton: true,
+      confirmButtonText: 'Apply',
+      confirmButtonColor: '#e74c3c'
+    });
+    
+    if (!action) return;
+    
+    const { value: details } = await Swal.fire({
+      title: 'Additional Details',
+      input: 'textarea',
+      inputPlaceholder: 'Enter details (duration, conditions, etc.)',
+      showCancelButton: true
+    });
+    
+    try {
+      await api(`/discipline-admin/cases/${caseItem._id}`, {
+        method: 'PUT',
+        body: JSON.stringify({
+          action,
+          actionDetails: details || '',
+          status: 'resolved',
+          reviewedBy: userId
+        })
+      });
+      Swal.fire('✅ Action Applied!', `Punishment: ${action}`, 'success');
+      fetchDisciplineCases();
+    } catch (e) { Swal.fire('Error', e.message, 'error'); }
+  };
+  
+  const processPermission = async (permission, status) => {
+    const isReject = status === 'rejected';
+    const result = await Swal.fire({
+      title: `${isReject ? 'Reject' : 'Approve'} Permission Request`,
+      text: `${permission.requesterName} - ${permission.reason || permission.type}`,
+      icon: 'question',
+      showCancelButton: true,
+      confirmButtonText: isReject ? '❌ Reject' : '✅ Approve',
+      confirmButtonColor: isReject ? '#e74c3c' : '#27ae60',
+      ...(isReject && { input: 'textarea', inputLabel: 'Reason for rejection' })
+    });
+    if (!result.isConfirmed) return;
+    
+    try {
+      await api(`/permissions/${permission._id}`, {
+        method: 'PUT',
+        body: JSON.stringify({ status, rejectionReason: result.value || '' })
+      });
+      Swal.fire(`${isReject ? 'Rejected' : 'Approved'}!`, '', 'success');
+      fetchPermissions();
+    } catch (e) { Swal.fire('Error', e.message, 'error'); }
+  };
+  
+  const postAnnouncement = async () => {
+    if (!announcementForm.title || !announcementForm.content) {
+      Swal.fire('Missing Fields', 'Title and content required', 'warning');
+      return;
+    }
+    setSaving(true);
+    try {
+      await api('/announcements', {
+        method: 'POST',
+        body: JSON.stringify(announcementForm)
+      });
+      Swal.fire('📢 Posted!', 'Announcement published', 'success');
+      setAnnouncementModal(false);
+      setAnnouncementForm({ title: '', content: '', audience: 'all', priority: 'normal' });
+      fetchAnnouncements();
+    } catch (e) { Swal.fire('Error', e.message, 'error'); }
+    finally { setSaving(false); }
+  };
+  
+  const requestPermission = async () => {
+    if (!permissionForm.type || !permissionForm.reason) {
+      Swal.fire('Missing Fields', 'Please fill required fields', 'warning');
+      return;
+    }
+    setSaving(true);
+    try {
+      await api('/permissions', {
+        method: 'POST',
+        body: JSON.stringify({
+          type: permissionForm.type,
+          reason: permissionForm.reason,
+          fromDate: permissionForm.fromDate,
+          toDate: permissionForm.toDate
+        })
+      });
+      Swal.fire('✅ Request Submitted!', 'Your permission request has been sent to Super Admin', 'success');
+      setPermissionModal(false);
+      setPermissionForm({ studentId: '', type: 'medical', reason: '', fromDate: '', toDate: '', attachment: '' });
+    } catch (e) { Swal.fire('Error', e.message, 'error'); }
+    finally { setSaving(false); }
+  };
+
+  const filteredCases = disciplineCases.filter(c => {
+    if (caseFilter !== 'all' && c.status !== caseFilter) return false;
+    if (classFilter && c.className !== classFilter) return false;
+    if (searchTerm && !c.studentName?.toLowerCase().includes(searchTerm.toLowerCase())) return false;
+    return true;
+  });
+  
+  const filteredUsers = msgUsers.filter(u =>
+    u.fullName?.toLowerCase().includes(msgSearch.toLowerCase()) ||
+    u.role?.toLowerCase().includes(msgSearch.toLowerCase())
+  );
+  
+  const pendingPermissions = permissions.filter(p => p.status === 'pending').length;
+  const pendingCases = disciplineCases.filter(c => c.status === 'pending').length;
+  const resolvedCases = disciplineCases.filter(c => c.status === 'resolved').length;
 
   const menuItems = [
     { id: 'overview', label: 'Dashboard', icon: 'fas fa-chart-line' },
-    { id: 'teachers', label: 'Teachers', icon: 'fas fa-chalkboard-user' },
-    { id: 'classes', label: 'Classes', icon: 'fas fa-school' },
+    { id: 'cases', label: 'Discipline Cases', icon: 'fas fa-gavel', badge: pendingCases },
+    { id: 'permissions', label: 'Permission Requests', icon: 'fas fa-file-signature', badge: pendingPermissions },
     { id: 'students', label: 'Students', icon: 'fas fa-user-graduate' },
-    { id: 'news', label: 'News & Events', icon: 'fas fa-newspaper' },
-    { id: 'gallery', label: 'Gallery', icon: 'fas fa-images' },
-    { id: 'applications', label: 'Applications', icon: 'fas fa-file-alt', badge: applications.filter(a => a.status === 'pending').length },
-    { id: 'performance', label: 'Performance', icon: 'fas fa-chart-bar' },
     { id: 'announcements', label: 'Announcements', icon: 'fas fa-bullhorn' },
     { id: 'messages', label: 'Messages', icon: 'fas fa-comments', badge: unread },
     { id: 'profile', label: 'Profile', icon: 'fas fa-user-shield' },
   ];
-
-  const filteredUsers = msgUsers.filter(u =>
-    u.fullName?.toLowerCase().includes(msgSearch.toLowerCase()) || u.role?.toLowerCase().includes(msgSearch.toLowerCase())
-  );
 
   const sideW = isMobile ? 0 : sidebarOpen ? 260 : 72;
 
   if (loading) return (
     <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100vh', background: 'linear-gradient(135deg,#0d2b42,#1a3a5c)', color: 'white', gap: 20 }}>
       <div style={{ width: 44, height: 44, border: '3px solid rgba(255,255,255,.15)', borderTopColor: '#ffc107', borderRadius: '50%', animation: 'spin .8s linear infinite' }} />
-      <p style={{ margin: 0, fontSize: 16 }}>Loading Dashboard…</p>
+      <p style={{ margin: 0, fontSize: 16 }}>Loading Discipline Portal…</p>
       <style>{`@keyframes spin{to{transform:rotate(360deg)}}`}</style>
     </div>
   );
@@ -392,24 +525,23 @@ const AcademicAdminDashboard = () => {
         ::-webkit-scrollbar{width:5px;height:5px}::-webkit-scrollbar-thumb{background:#ccc;border-radius:10px}
         .sent-bubble{background:#1a3a5c;color:white;border-radius:18px 18px 4px 18px;padding:10px 15px;max-width:70%;align-self:flex-end;font-size:13px}
         .recv-bubble{background:white;color:#333;border-radius:18px 18px 18px 4px;padding:10px 15px;max-width:70%;align-self:flex-start;font-size:13px;box-shadow:0 1px 4px rgba(0,0,0,.08)}
-        @media(max-width:768px){.hide-mobile{display:none!important}.stats-g{grid-template-columns:1fr 1fr!important}}
+        @media(max-width:768px){.hide-mobile{display:none!important}}
       `}</style>
 
-      {/* Mobile overlay */}
       {isMobile && mobileOpen && <div onClick={() => setMobileOpen(false)} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.45)', zIndex: 998 }} />}
 
       {/* ─── SIDEBAR ─── */}
       <aside style={{ position: 'fixed', top: 0, left: 0, bottom: 0, zIndex: 999, width: isMobile ? (mobileOpen ? 260 : 0) : sideW, background: 'linear-gradient(180deg,#0d1f33 0%,#1a3a5c 100%)', color: 'white', display: 'flex', flexDirection: 'column', transition: 'width .3s ease', overflow: 'hidden', boxShadow: '3px 0 20px rgba(0,0,0,.18)' }}>
         <div style={{ padding: '20px 16px', borderBottom: '1px solid rgba(255,255,255,.08)', display: 'flex', alignItems: 'center', gap: 11, flexShrink: 0 }}>
           <div style={{ width: 38, height: 38, background: '#ffc107', borderRadius: 11, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-            <i className="fas fa-user-graduate" style={{ fontSize: 16, color: '#1a3a5c' }} />
+            <i className="fas fa-gavel" style={{ fontSize: 16, color: '#1a3a5c' }} />
           </div>
-          {(sidebarOpen || isMobile) && <div><div style={{ fontFamily: 'Georgia, serif', fontSize: 15, fontWeight: 600 }}>ESSA Portal</div><div style={{ fontSize: 10, opacity: .6, letterSpacing: 1 }}>ACADEMIC ADMIN</div></div>}
+          {(sidebarOpen || isMobile) && <div><div style={{ fontFamily: 'Georgia, serif', fontSize: 15, fontWeight: 600 }}>ESSA Portal</div><div style={{ fontSize: 10, opacity: .6, letterSpacing: 1 }}>DISCIPLINE ADMIN</div></div>}
           {!isMobile && <button onClick={() => setSidebarOpen(!sidebarOpen)} style={{ marginLeft: 'auto', background: 'none', border: 'none', color: 'rgba(255,255,255,.4)', cursor: 'pointer', fontSize: 13, flexShrink: 0 }}><i className={`fas fa-chevron-${sidebarOpen ? 'left' : 'right'}`} /></button>}
         </div>
         <div style={{ padding: '14px 16px', borderBottom: '1px solid rgba(255,255,255,.08)', display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0 }}>
           <Avatar name={userName} size={36} bg='rgba(255,193,7,.2)' color='#ffc107' />
-          {(sidebarOpen || isMobile) && <div><div style={{ fontSize: 13, fontWeight: 600 }}>{userName}</div><div style={{ fontSize: 10, color: '#ffc107' }}>Academic Admin</div></div>}
+          {(sidebarOpen || isMobile) && <div><div style={{ fontSize: 13, fontWeight: 600 }}>{userName}</div><div style={{ fontSize: 10, color: '#ffc107' }}>Discipline Admin</div></div>}
         </div>
         <nav style={{ flex: 1, overflowY: 'auto', padding: '8px 0' }}>
           {menuItems.map(item => {
@@ -442,6 +574,9 @@ const AcademicAdminDashboard = () => {
             </div>
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+            <button onClick={() => setPermissionModal(true)} style={{ background: '#fdecea', border: 'none', padding: '6px 12px', borderRadius: 20, fontSize: 12, fontWeight: 600, color: '#e74c3c', cursor: 'pointer' }}>
+              <i className="fas fa-file-alt" style={{ marginRight: 5 }} /> Request Permission
+            </button>
             {unread > 0 && <button onClick={() => setActiveTab('messages')} style={{ position: 'relative', background: 'none', border: 'none', cursor: 'pointer', color: '#888', fontSize: 17 }}>
               <i className="fas fa-bell" />
               <span style={{ position: 'absolute', top: -4, right: -4, background: '#e74c3c', color: 'white', borderRadius: '50%', fontSize: 9, width: 15, height: 15, display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700 }}>{unread}</span>
@@ -449,7 +584,7 @@ const AcademicAdminDashboard = () => {
             <Avatar name={userName} size={32} />
             <div className="hide-mobile">
               <div style={{ fontSize: 12, fontWeight: 600, color: '#333' }}>{userName}</div>
-              <div style={{ fontSize: 10, color: '#ffc107' }}>ACADEMIC ADMIN</div>
+              <div style={{ fontSize: 10, color: '#ffc107' }}>DISCIPLINE ADMIN</div>
             </div>
           </div>
         </div>
@@ -457,93 +592,128 @@ const AcademicAdminDashboard = () => {
         {/* Content */}
         <div style={{ flex: 1, padding: 20, overflowY: 'auto' }} className="tab-anim">
 
-          {/* ══ OVERVIEW ══ */}
+          {/* ══ OVERVIEW DASHBOARD ══ */}
           {activeTab === 'overview' && (
             <div>
               <div style={{ background: 'linear-gradient(135deg,#0d1f33,#1a3a5c)', borderRadius: 18, padding: '24px 28px', marginBottom: 22, color: 'white', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 14, boxShadow: '0 6px 24px rgba(26,58,92,.35)' }}>
                 <div>
-                  <div style={{ fontSize: 20, fontWeight: 600, fontFamily: 'Georgia, serif', marginBottom: 5 }}>Welcome, {userName.split(' ')[0]}! 📚</div>
+                  <div style={{ fontSize: 20, fontWeight: 600, fontFamily: 'Georgia, serif', marginBottom: 5 }}>Welcome, {userName.split(' ')[0]}! ⚖️</div>
                   <div style={{ fontSize: 12, opacity: .75 }}>{new Date().toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}</div>
                 </div>
                 <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
-                  <Btn onClick={() => setTeacherModal(true)} icon="fas fa-user-plus" color="#ffc107" textColor="#1a3a5c">Add Teacher</Btn>
-                  <Btn onClick={() => setClassModal(true)} icon="fas fa-plus" color="rgba(255,255,255,.15)" textColor="white">New Class</Btn>
+                  <Btn onClick={() => setIncidentModal(true)} icon="fas fa-exclamation-triangle" color="#e74c3c">Report Incident</Btn>
+                  <Btn onClick={() => setAnnouncementModal(true)} icon="fas fa-bullhorn" color="rgba(255,255,255,.15)" textColor="white">Post Announcement</Btn>
                 </div>
               </div>
-              <div className="stats-g" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(190px,1fr))', gap: 14, marginBottom: 20 }}>
-                <StatCard icon="fas fa-chalkboard-user" label="Teachers" value={teachers.length} sub="Active educators" accent="#27ae60" bg="#e8f5e9" onClick={() => setActiveTab('teachers')} />
-                <StatCard icon="fas fa-school" label="Classes" value={classes.length} sub="Active classes" accent="#3498db" bg="#e3f2fd" onClick={() => setActiveTab('classes')} />
-                <StatCard icon="fas fa-user-graduate" label="Students" value={students.length} sub="Enrolled students" accent="#9b59b6" bg="#f3e5f5" onClick={() => setActiveTab('students')} />
-                <StatCard icon="fas fa-newspaper" label="News & Events" value={news.length} sub="Published articles" accent="#f39c12" bg="#fff3e0" onClick={() => setActiveTab('news')} />
-                <StatCard icon="fas fa-images" label="Gallery" value={gallery.length} sub="Images uploaded" accent="#e74c3c" bg="#fdecea" onClick={() => setActiveTab('gallery')} />
-                <StatCard icon="fas fa-file-alt" label="Applications" value={applications.filter(a => a.status === 'pending').length} sub="Pending review" accent="#1abc9c" bg="#e0f7fa" onClick={() => setActiveTab('applications')} />
+              
+              {/* Stats Cards */}
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(190px,1fr))', gap: 14, marginBottom: 20 }}>
+                <StatCard icon="fas fa-clock" label="Pending Cases" value={pendingCases} sub="Awaiting review" accent="#f39c12" bg="#fff3e0" onClick={() => setActiveTab('cases')} />
+                <StatCard icon="fas fa-check-circle" label="Resolved Cases" value={resolvedCases} sub="Completed" accent="#27ae60" bg="#e8f5e9" onClick={() => setActiveTab('cases')} />
+                <StatCard icon="fas fa-file-signature" label="Permission Requests" value={pendingPermissions} sub="Pending approval" accent="#3498db" bg="#e3f2fd" onClick={() => setActiveTab('permissions')} />
+                <StatCard icon="fas fa-ban" label="Suspensions" value={disciplineStats.suspended || 0} sub="Active" accent="#e74c3c" bg="#fdecea" />
+                <StatCard icon="fas fa-users" label="Total Students" value={students.length} sub="Enrolled" accent="#9b59b6" bg="#f3e5f5" onClick={() => setActiveTab('students')} />
               </div>
-              {/* recent news */}
+              
+              {/* Quick Actions */}
+              <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', marginBottom: 20 }}>
+                <Btn onClick={() => setIncidentModal(true)} icon="fas fa-plus" color="#e74c3c">New Incident</Btn>
+                <Btn onClick={() => setMassMessageModal(true)} icon="fas fa-envelope" color="#3498db">Mass Message</Btn>
+                <Btn onClick={() => setAnnouncementModal(true)} icon="fas fa-bullhorn" color="#1a3a5c">Post Announcement</Btn>
+                <Btn onClick={() => setReportModal(true)} icon="fas fa-chart-bar" color="#27ae60">Generate Report</Btn>
+              </div>
+              
+              {/* Recent Cases */}
               <div style={{ background: 'white', borderRadius: 14, padding: 18, boxShadow: '0 2px 10px rgba(0,0,0,.05)' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
-                  <h3 style={{ margin: 0, fontSize: 14, color: '#1a3a5c', fontWeight: 600 }}><i className="fas fa-newspaper" style={{ marginRight: 7, color: '#f39c12' }} />Recent News</h3>
-                  <Btn small onClick={() => setNewsModal(true)} icon="fas fa-plus" color="#f39c12">Post News</Btn>
+                  <h3 style={{ margin: 0, fontSize: 14, color: '#1a3a5c', fontWeight: 600 }}><i className="fas fa-gavel" style={{ marginRight: 7, color: '#e74c3c' }} />Recent Cases</h3>
+                  <Btn small onClick={() => setActiveTab('cases')} color="#1a3a5c">View All</Btn>
                 </div>
-                {news.slice(0, 3).map(n => (
-                  <div key={n._id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 0', borderBottom: '1px solid #f5f5f5' }}>
-                    <div><div style={{ fontSize: 13, fontWeight: 600 }}>{n.title}</div><div style={{ fontSize: 11, color: '#aaa', marginTop: 2 }}>{n.category} · {fmt(n.date)}</div></div>
-                    <Btn small danger icon="fas fa-trash" onClick={() => deleteNews(n)} />
+                {disciplineCases.slice(0, 5).map(c => (
+                  <div key={c._id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 0', borderBottom: '1px solid #f5f5f5' }}>
+                    <div>
+                      <div style={{ fontSize: 13, fontWeight: 600 }}>{c.studentName}</div>
+                      <div style={{ fontSize: 11, color: '#aaa', marginTop: 2 }}>{c.category} · {fmt(c.createdAt)}</div>
+                    </div>
+                    <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                      <Badge text={c.status} color={c.status === 'pending' ? '#f39c12' : '#27ae60'} bg={c.status === 'pending' ? '#fff3e0' : '#e8f5e9'} />
+                      {c.status === 'pending' && <Btn small onClick={() => takeAction(c)} icon="fas fa-hammer" color="#e74c3c">Act</Btn>}
+                    </div>
                   </div>
                 ))}
-                {news.length === 0 && <p style={{ textAlign: 'center', color: '#bbb', fontSize: 13, padding: 20 }}>No news published yet</p>}
+                {disciplineCases.length === 0 && <p style={{ textAlign: 'center', color: '#bbb', padding: 20 }}>No cases reported</p>}
               </div>
             </div>
           )}
 
-          {/* ══ TEACHERS ══ */}
-          {activeTab === 'teachers' && (
+          {/* ══ DISCIPLINE CASES ══ */}
+          {activeTab === 'cases' && (
             <div>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 18, flexWrap: 'wrap', gap: 10 }}>
-                <div><h2 style={{ margin: 0, fontSize: 19, color: '#1a3a5c', fontFamily: 'Georgia, serif' }}>Teachers</h2><p style={{ margin: '3px 0 0', fontSize: 12, color: '#888' }}>{teachers.length} educators registered</p></div>
-                <Btn onClick={() => setTeacherModal(true)} icon="fas fa-plus" color="#1a3a5c">Add Teacher</Btn>
+                <div><h2 style={{ margin: 0, fontSize: 19, color: '#1a3a5c', fontFamily: 'Georgia, serif' }}>Discipline Cases</h2><p style={{ margin: '3px 0 0', fontSize: 12, color: '#888' }}>{filteredCases.length} cases found</p></div>
+                <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+                  <Btn onClick={() => setIncidentModal(true)} icon="fas fa-plus" color="#e74c3c">Report Incident</Btn>
+                  <select value={caseFilter} onChange={e => setCaseFilter(e.target.value)} style={{ padding: '6px 12px', borderRadius: 8, border: '1px solid #ddd', fontSize: 12 }}>
+                    <option value="all">All Cases</option>
+                    <option value="pending">Pending</option>
+                    <option value="resolved">Resolved</option>
+                  </select>
+                  <input value={searchTerm} onChange={e => setSearchTerm(e.target.value)} placeholder="Search student..." style={{ padding: '6px 12px', borderRadius: 8, border: '1px solid #ddd', fontSize: 12, width: 180 }} />
+                </div>
               </div>
               <div style={{ background: 'white', borderRadius: 14, boxShadow: '0 2px 10px rgba(0,0,0,.05)' }}>
-                <Table cols={['Teacher', 'Email', 'Subject', 'Phone', 'Actions']} emptyMsg="No teachers yet. Click Add Teacher."
-                  rows={teachers.map(t => (
-                    <><TD><div style={{ display: 'flex', alignItems: 'center', gap: 9 }}><Avatar name={t.fullName} size={32} /><div><div style={{ fontWeight: 600, fontSize: 13 }}>{t.fullName}</div></div></div></TD>
-                      <TD><span style={{ color: '#3498db', fontSize: 12 }}>{t.email}</span></TD>
-                      <TD><Badge text={t.subject || 'General'} color="#9b59b6" bg="#f3e5f5" /></TD>
-                      <TD style={{ fontSize: 12 }}>{t.phone || '—'}</TD>
-                      <TD><div style={{ display: 'flex', gap: 6 }}>
-                        <Btn small icon="fas fa-comment" color="#3498db" onClick={() => { setSelectedUser(t); setActiveTab('messages'); fetchConversation(t._id); }}>Message</Btn>
-                        <Btn small danger icon="fas fa-trash" onClick={() => deleteTeacher(t)} />
-                      </div></TD></>
+                <Table cols={['Student', 'Class', 'Offense', 'Reported', 'Status', 'Action']} emptyMsg="No discipline cases found"
+                  rows={filteredCases.map(c => (
+                    <><TD><div style={{ fontWeight: 600, fontSize: 13 }}>{c.studentName}</div></TD>
+                      <TD style={{ fontSize: 12 }}>{c.className || '—'}</TD>
+                      <TD><Badge text={c.category} color="#9b59b6" bg="#f3e5f5" /></TD>
+                      <TD style={{ fontSize: 12, color: '#aaa' }}>{fmt(c.createdAt)}</TD>
+                      <TD><Badge text={c.status} color={c.status === 'pending' ? '#f39c12' : '#27ae60'} bg={c.status === 'pending' ? '#fff3e0' : '#e8f5e9'} /></TD>
+                      <TD>{c.status === 'pending' ? <Btn small onClick={() => takeAction(c)} icon="fas fa-hammer" color="#e74c3c">Take Action</Btn> : <span style={{ fontSize: 11, color: '#aaa' }}>{c.action || 'Resolved'}</span>}</TD></>
                   ))}
                 />
               </div>
             </div>
           )}
 
-          {/* ══ CLASSES ══ */}
-          {activeTab === 'classes' && (
+          {/* ══ PERMISSION REQUESTS ══ */}
+          {activeTab === 'permissions' && (
             <div>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 18, flexWrap: 'wrap', gap: 10 }}>
-                <div><h2 style={{ margin: 0, fontSize: 19, color: '#1a3a5c', fontFamily: 'Georgia, serif' }}>Classes</h2><p style={{ margin: '3px 0 0', fontSize: 12, color: '#888' }}>{classes.length} classes registered</p></div>
-                <div style={{ display: 'flex', gap: 10 }}>
-                  <Btn onClick={() => fetchClasses()} icon="fas fa-sync" color="#3498db" small>Refresh</Btn>
-                  <Btn onClick={() => setClassModal(true)} icon="fas fa-plus" color="#1a3a5c">Create Class</Btn>
-                </div>
-              </div>
+              <div style={{ marginBottom: 18 }}><h2 style={{ margin: 0, fontSize: 19, color: '#1a3a5c', fontFamily: 'Georgia, serif' }}>Permission Requests</h2><p style={{ margin: '3px 0 0', fontSize: 12, color: '#888' }}>{pendingPermissions} pending · {permissions.filter(p => p.status === 'approved').length} approved · {permissions.filter(p => p.status === 'rejected').length} rejected</p></div>
               <div style={{ background: 'white', borderRadius: 14, boxShadow: '0 2px 10px rgba(0,0,0,.05)' }}>
-                <Table cols={['Grade', 'Class', 'Year', 'Teacher', 'Students', 'Actions']} emptyMsg="No classes yet."
-                  rows={classes.map(c => {
-                    const tInfo = c.teacherInfo || (c.teacherId && typeof c.teacherId === 'object' ? c.teacherId : null);
-                    const studentCount = students.filter(s => s.classId?._id === c._id || s.classId === c._id).length;
+                <Table cols={['Requester', 'Type', 'Reason', 'Date Range', 'Status', 'Actions']} emptyMsg="No permission requests"
+                  rows={permissions.map(p => (
+                    <><TD><div style={{ fontWeight: 600, fontSize: 13 }}>{p.requesterName}</div><div style={{ fontSize: 11, color: '#aaa' }}>{roleBadge(p.requesterRole).label}</div></TD>
+                      <TD><Badge text={p.type} color="#3498db" bg="#e3f2fd" /></TD>
+                      <TD style={{ fontSize: 12, maxWidth: 200 }}>{p.reason || '—'}</TD>
+                      <TD style={{ fontSize: 12 }}>{fmt(p.fromDate)} - {fmt(p.toDate)}</TD>
+                      <TD><Badge text={p.status} color={p.status === 'pending' ? '#f39c12' : p.status === 'approved' ? '#27ae60' : '#e74c3c'} bg={p.status === 'pending' ? '#fff3e0' : p.status === 'approved' ? '#e8f5e9' : '#fdecea'} /></TD>
+                      <TD>{p.status === 'pending' && <div style={{ display: 'flex', gap: 6 }}><Btn small onClick={() => processPermission(p, 'approved')} color="#27ae60">Approve</Btn><Btn small onClick={() => processPermission(p, 'rejected')} danger>Reject</Btn></div>}</TD></>
+                  ))}
+                />
+              </div>
+            </div>
+          )}
+
+          {/* ══ STUDENTS VIEWER ══ */}
+          {activeTab === 'students' && (
+            <div>
+              <div style={{ marginBottom: 18 }}><h2 style={{ margin: 0, fontSize: 19, color: '#1a3a5c', fontFamily: 'Georgia, serif' }}>Student Directory</h2><p style={{ margin: '3px 0 0', fontSize: 12, color: '#888' }}>{students.length} students enrolled</p></div>
+              <div style={{ background: 'white', borderRadius: 14, boxShadow: '0 2px 10px rgba(0,0,0,.05)' }}>
+                <Table cols={['Student', 'Class', 'Parent', 'Contact', 'Status', 'Actions']} emptyMsg="No students found"
+                  rows={students.map(s => {
+                    const studentCases = disciplineCases.filter(c => c.studentName === s.fullName);
+                    const hasPending = studentCases.some(c => c.status === 'pending');
                     return (
-                      <><TD><Badge text={c.grade} color="#1a3a5c" bg="#e8f0fb" /></TD>
-                        <TD><strong style={{ fontSize: 13 }}>{c.className}</strong></TD>
-                        <TD style={{ fontSize: 12 }}>{c.academicYear}</TD>
-                        <TD>{tInfo ? <Badge text={tInfo.fullName} color="#27ae60" bg="#e8f5e9" /> : <span style={{ color: '#e74c3c', fontSize: 12 }}>Not assigned</span>}</TD>
-                        <TD><Badge text={`${studentCount}`} color="#3498db" bg="#e3f2fd" /></TD>
-                        <TD><div style={{ display: 'flex', gap: 6 }}>
-                          <Btn small icon="fas fa-user-plus" color="#f39c12" onClick={() => assignTeacher(c)}>Assign</Btn>
-                          <Btn small danger icon="fas fa-trash" onClick={() => deleteClass(c)} />
-                        </div></TD></>
+                      <><TD><div style={{ fontWeight: 600, fontSize: 13 }}>{s.fullName}</div><div style={{ fontSize: 11, color: '#aaa' }}>{s.studentId || ''}</div></TD>
+                        <TD>{s.classId ? <Badge text={`${s.classId.grade || ''} ${s.classId.className || ''}`} color="#3498db" bg="#e3f2fd" /> : '—'}</TD>
+                        <TD style={{ fontSize: 12 }}>{s.parentName || '—'}</TD>
+                        <TD style={{ fontSize: 12 }}>{s.parentPhone || '—'}</TD>
+                        <TD>{hasPending ? <Badge text="Active Case" color="#e74c3c" bg="#fdecea" /> : <Badge text="Clear" color="#27ae60" bg="#e8f5e9" />}</TD>
+                        <TD><Btn small icon="fas fa-history" color="#3498db" onClick={() => {
+                          const cases = disciplineCases.filter(c => c.studentName === s.fullName);
+                          Swal.fire({ title: `Cases for ${s.fullName}`, html: cases.map(c => `<div><b>${c.category}</b>: ${c.status} - ${fmt(c.createdAt)}</div>`).join('') || 'No cases', icon: 'info' });
+                        }}>History</Btn></TD></>
                     );
                   })}
                 />
@@ -551,149 +721,13 @@ const AcademicAdminDashboard = () => {
             </div>
           )}
 
-          {/* ══ STUDENTS ══ */}
-          {activeTab === 'students' && (
-            <div>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 18, flexWrap: 'wrap', gap: 10 }}>
-                <div><h2 style={{ margin: 0, fontSize: 19, color: '#1a3a5c', fontFamily: 'Georgia, serif' }}>Students</h2><p style={{ margin: '3px 0 0', fontSize: 12, color: '#888' }}>{students.length} students enrolled</p></div>
-                <Btn onClick={() => setStudentModal(true)} icon="fas fa-user-plus" color="#1a3a5c">Add Student</Btn>
-              </div>
-              <div style={{ background: 'white', borderRadius: 14, boxShadow: '0 2px 10px rgba(0,0,0,.05)' }}>
-                <Table cols={['Student', 'Email', 'Class', 'Parent', 'Contact', 'Actions']} emptyMsg="No students enrolled yet."
-                  rows={students.map(s => (
-                    <><TD><div style={{ display: 'flex', alignItems: 'center', gap: 9 }}><Avatar name={s.fullName} size={30} /><div><div style={{ fontWeight: 600, fontSize: 13 }}>{s.fullName}</div><div style={{ fontSize: 11, color: '#aaa' }}>{s.studentId || ''}</div></div></div></TD>
-                      <TD style={{ fontSize: 12 }}>{s.email || '—'}</TD>
-                      <TD>{s.classId ? <Badge text={`${s.classId.grade || ''} ${s.classId.className || ''}`} color="#3498db" bg="#e3f2fd" /> : <span style={{ color: '#aaa', fontSize: 12 }}>Not assigned</span>}</TD>
-                      <TD style={{ fontSize: 12 }}>{s.parentName || '—'}</TD>
-                      <TD style={{ fontSize: 12 }}>{s.parentPhone || '—'}</TD>
-                      <TD><Btn small danger icon="fas fa-trash" onClick={() => deleteStudent(s)} /></TD></>
-                  ))}
-                />
-              </div>
-            </div>
-          )}
-
-          {/* ══ NEWS ══ */}
-          {activeTab === 'news' && (
-            <div>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 18, flexWrap: 'wrap', gap: 10 }}>
-                <div><h2 style={{ margin: 0, fontSize: 19, color: '#1a3a5c', fontFamily: 'Georgia, serif' }}>News & Events</h2><p style={{ margin: '3px 0 0', fontSize: 12, color: '#888' }}>{news.length} articles published</p></div>
-                <Btn onClick={() => setNewsModal(true)} icon="fas fa-plus" color="#1a3a5c">Post News</Btn>
-              </div>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-                {news.length === 0 && <div style={{ textAlign: 'center', padding: 50, background: 'white', borderRadius: 14, color: '#bbb' }}><i className="fas fa-newspaper" style={{ fontSize: 36, marginBottom: 10, display: 'block', opacity: .3 }} />No news published yet</div>}
-                {news.map(n => (
-                  <div key={n._id} style={{ background: 'white', borderRadius: 13, padding: '16px 18px', display: 'flex', gap: 14, alignItems: 'flex-start', boxShadow: '0 2px 8px rgba(0,0,0,.05)' }}>
-                    {n.image && <img src={n.image} alt={n.title} style={{ width: 80, height: 60, objectFit: 'cover', borderRadius: 8, flexShrink: 0 }} />}
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', flexWrap: 'wrap', gap: 8 }}>
-                        <h3 style={{ margin: 0, fontSize: 14, color: '#1a3a5c' }}>{n.title}</h3>
-                        <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
-                          <Badge text={n.category} color="#f39c12" bg="#fff3e0" />
-                          <span style={{ fontSize: 11, color: '#aaa' }}>{fmt(n.date)}</span>
-                          <Btn small danger icon="fas fa-trash" onClick={() => deleteNews(n)} />
-                        </div>
-                      </div>
-                      <p style={{ margin: '6px 0 0', fontSize: 12, color: '#666', lineHeight: 1.6 }}>{n.summary}</p>
-                      <div style={{ display: 'flex', gap: 12, marginTop: 8, fontSize: 11, color: '#aaa' }}>
-                        <span><i className="fas fa-eye" style={{ marginRight: 4 }} />{n.views || 0} views</span>
-                        <span><i className="fas fa-user" style={{ marginRight: 4 }} />{n.author}</span>
-                      </div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {/* ══ GALLERY ══ */}
-          {activeTab === 'gallery' && (
-            <div>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 18, flexWrap: 'wrap', gap: 10 }}>
-                <div><h2 style={{ margin: 0, fontSize: 19, color: '#1a3a5c', fontFamily: 'Georgia, serif' }}>Photo Gallery</h2><p style={{ margin: '3px 0 0', fontSize: 12, color: '#888' }}>{gallery.length} images</p></div>
-                <Btn onClick={() => setGalleryModal(true)} icon="fas fa-plus" color="#1a3a5c">Add Image</Btn>
-              </div>
-              {gallery.length === 0 && <div style={{ textAlign: 'center', padding: 50, background: 'white', borderRadius: 14, color: '#bbb' }}><i className="fas fa-images" style={{ fontSize: 36, marginBottom: 10, display: 'block', opacity: .3 }} />No gallery images yet</div>}
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(200px,1fr))', gap: 14 }}>
-                {gallery.map(img => (
-                  <div key={img._id} style={{ borderRadius: 12, overflow: 'hidden', position: 'relative', background: 'white', boxShadow: '0 2px 8px rgba(0,0,0,.08)' }}>
-                    <img src={img.image} alt={img.title} style={{ width: '100%', height: 150, objectFit: 'cover' }} />
-                    <div style={{ padding: '10px 12px' }}>
-                      <div style={{ fontSize: 13, fontWeight: 600, color: '#1a3a5c' }}>{img.title}</div>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 6 }}>
-                        <Badge text={img.category} color="#3498db" bg="#e3f2fd" size={10} />
-                        <button onClick={() => deleteGallery(img)} style={{ background: '#fdecea', border: 'none', borderRadius: 6, padding: '4px 8px', cursor: 'pointer', color: '#e74c3c', fontSize: 11 }}><i className="fas fa-trash" /></button>
-                      </div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {/* ══ APPLICATIONS ══ */}
-          {activeTab === 'applications' && (
-            <div>
-              <div style={{ marginBottom: 18 }}><h2 style={{ margin: 0, fontSize: 19, color: '#1a3a5c', fontFamily: 'Georgia, serif' }}>Admission Applications</h2><p style={{ margin: '3px 0 0', fontSize: 12, color: '#888' }}>{applications.length} total · {applications.filter(a => a.status === 'pending').length} pending</p></div>
-              <div style={{ background: 'white', borderRadius: 14, boxShadow: '0 2px 10px rgba(0,0,0,.05)' }}>
-                <Table cols={['Applicant', 'Level', 'Previous School', 'Average', 'Applied', 'Status', 'Actions']} emptyMsg="No applications submitted yet."
-                  rows={applications.map(app => (
-                    <><TD><div style={{ fontWeight: 600, fontSize: 13 }}>{app.fullName}</div><div style={{ fontSize: 11, color: '#aaa' }}>{app.email}</div></TD>
-                      <TD><Badge text={app.level} color="#3498db" bg="#e3f2fd" /></TD>
-                      <TD style={{ fontSize: 12 }}>{app.previousSchool}</TD>
-                      <TD><span style={{ fontWeight: 700, color: app.lastAverage >= 70 ? '#27ae60' : '#e74c3c' }}>{app.lastAverage}%</span></TD>
-                      <TD style={{ fontSize: 12, color: '#aaa' }}>{fmt(app.createdAt)}</TD>
-                      <TD>{(() => { const sc = { pending: { color: '#f39c12', bg: '#fff3e0' }, accepted: { color: '#27ae60', bg: '#e8f5e9' }, rejected: { color: '#e74c3c', bg: '#fdecea' }, reviewing: { color: '#3498db', bg: '#e3f2fd' } }[app.status] || {}; return <Badge text={app.status} color={sc.color} bg={sc.bg} />; })()}</TD>
-                      <TD>{app.status === 'pending' && <div style={{ display: 'flex', gap: 6 }}>
-                        <Btn small onClick={() => reviewApplication(app, 'accepted')} color="#27ae60">Accept</Btn>
-                        <Btn small onClick={() => reviewApplication(app, 'rejected')} danger>Reject</Btn>
-                      </div>}</TD></>
-                  ))}
-                />
-              </div>
-            </div>
-          )}
-
-          {/* ══ PERFORMANCE ══ */}
-          {activeTab === 'performance' && (
-            <div>
-              <div style={{ marginBottom: 18 }}><h2 style={{ margin: 0, fontSize: 19, color: '#1a3a5c', fontFamily: 'Georgia, serif' }}>Academic Performance</h2></div>
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(340px,1fr))', gap: 18 }}>
-                <div style={{ background: 'white', borderRadius: 14, padding: 18, boxShadow: '0 2px 10px rgba(0,0,0,.05)' }}>
-                  <h3 style={{ margin: '0 0 14px', fontSize: 14, color: '#1a3a5c', fontWeight: 600 }}><i className="fas fa-chart-bar" style={{ marginRight: 7, color: '#3498db' }} />Class Performance</h3>
-                  {classPerformance.length === 0 && <p style={{ textAlign: 'center', color: '#bbb', fontSize: 13 }}>No data available</p>}
-                  {classPerformance.map((c, i) => (
-                    <div key={i} style={{ marginBottom: 12 }}>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4, fontSize: 13 }}>
-                        <span>{c.className}</span><span style={{ fontWeight: 700, color: c.averageScore >= 70 ? '#27ae60' : '#e74c3c' }}>{c.averageScore}%</span>
-                      </div>
-                      <div style={{ height: 8, background: '#f0f0f0', borderRadius: 4, overflow: 'hidden' }}>
-                        <div style={{ height: '100%', width: `${c.averageScore}%`, background: c.averageScore >= 70 ? '#27ae60' : '#e74c3c', borderRadius: 4, transition: 'width .5s' }} />
-                      </div>
-                    </div>
-                  ))}
-                </div>
-                <div style={{ background: 'white', borderRadius: 14, padding: 18, boxShadow: '0 2px 10px rgba(0,0,0,.05)' }}>
-                  <h3 style={{ margin: '0 0 14px', fontSize: 14, color: '#1a3a5c', fontWeight: 600 }}><i className="fas fa-trophy" style={{ marginRight: 7, color: '#f39c12' }} />Top Students</h3>
-                  <Table cols={['Student', 'Class', 'Average']} emptyMsg="No data yet."
-                    rows={studentPerformance.slice(0, 10).map((s, i) => (
-                      <><TD><div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                        <div style={{ width: 22, height: 22, borderRadius: '50%', background: i < 3 ? '#ffc107' : '#f0f0f0', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 700, color: i < 3 ? '#1a3a5c' : '#888' }}>{i + 1}</div>
-                        <span style={{ fontSize: 13, fontWeight: 600 }}>{s.name}</span>
-                      </div></TD>
-                        <TD style={{ fontSize: 12 }}>{s.class}</TD>
-                        <TD><span style={{ fontWeight: 700, color: s.averageScore >= 70 ? '#27ae60' : '#e74c3c' }}>{s.averageScore}%</span></TD></>
-                    ))}
-                  />
-                </div>
-              </div>
-            </div>
-          )}
-
           {/* ══ ANNOUNCEMENTS ══ */}
           {activeTab === 'announcements' && (
             <div>
-              <div style={{ marginBottom: 18 }}><h2 style={{ margin: 0, fontSize: 19, color: '#1a3a5c', fontFamily: 'Georgia, serif' }}>School Announcements</h2></div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 18, flexWrap: 'wrap', gap: 10 }}>
+                <div><h2 style={{ margin: 0, fontSize: 19, color: '#1a3a5c', fontFamily: 'Georgia, serif' }}>Announcements</h2><p style={{ margin: '3px 0 0', fontSize: 12, color: '#888' }}>{announcements.length} total</p></div>
+                <Btn onClick={() => setAnnouncementModal(true)} icon="fas fa-plus" color="#1a3a5c">Post Announcement</Btn>
+              </div>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
                 {announcements.length === 0 && <div style={{ textAlign: 'center', padding: 50, background: 'white', borderRadius: 14, color: '#bbb' }}><i className="fas fa-bullhorn" style={{ fontSize: 32, display: 'block', marginBottom: 10, opacity: .3 }} />No announcements yet</div>}
                 {announcements.map(ann => {
@@ -725,6 +759,7 @@ const AcademicAdminDashboard = () => {
                     {t === 'inbox' ? <><i className="fas fa-inbox" style={{ marginRight: 6 }} />Inbox{unread > 0 && <span style={{ marginLeft: 6, background: '#e74c3c', color: 'white', borderRadius: 20, fontSize: 10, padding: '1px 6px' }}>{unread}</span>}</> : <><i className="fas fa-pen" style={{ marginRight: 6 }} />New Message</>}
                   </button>
                 ))}
+                <Btn small onClick={() => setMassMessageModal(true)} icon="fas fa-users" color="#3498db">Mass Message</Btn>
               </div>
               {msgTab === 'inbox' ? (
                 <div style={{ flex: 1, display: 'flex', overflow: 'hidden' }}>
@@ -801,8 +836,8 @@ const AcademicAdminDashboard = () => {
               <div style={{ background: 'linear-gradient(135deg,#0d1f33,#1a3a5c)', borderRadius: 18, padding: '30px', textAlign: 'center', marginBottom: 18, color: 'white' }}>
                 <Avatar name={userName} size={72} bg='rgba(255,193,7,.2)' color='#ffc107' />
                 <h2 style={{ margin: '14px 0 3px', fontFamily: 'Georgia, serif', fontSize: 22 }}>{userName}</h2>
-                <div style={{ fontSize: 11, opacity: .7, letterSpacing: 1 }}>ACADEMIC ADMINISTRATOR</div>
-                <div style={{ fontSize: 12, opacity: .6, marginTop: 4 }}>{localStorage.getItem('userEmail') || 'academic@essa.rw'}</div>
+                <div style={{ fontSize: 11, opacity: .7, letterSpacing: 1 }}>DISCIPLINE ADMINISTRATOR</div>
+                <div style={{ fontSize: 12, opacity: .6, marginTop: 4 }}>{localStorage.getItem('userEmail') || 'discipline@essa.rw'}</div>
               </div>
               <div style={{ background: 'white', borderRadius: 14, padding: 22, boxShadow: '0 2px 10px rgba(0,0,0,.05)' }}>
                 <h3 style={{ margin: '0 0 16px', fontSize: 15, color: '#1a3a5c', fontFamily: 'Georgia, serif', display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -829,90 +864,112 @@ const AcademicAdminDashboard = () => {
       </main>
 
       {/* ─── MODALS ─── */}
-      <Modal open={teacherModal} onClose={() => setTeacherModal(false)} title="Create Teacher Account">
-        <Field label="Full Name" required><Inp value={teacherForm.fullName} placeholder="Jean Pierre Habimana" onChange={e => setTeacherForm(p => ({ ...p, fullName: e.target.value }))} /></Field>
-        <Field label="Email" required><Inp type="email" value={teacherForm.email} placeholder="teacher@essa.rw" onChange={e => setTeacherForm(p => ({ ...p, email: e.target.value }))} /></Field>
-        <Field label="Password"><Inp type="password" value={teacherForm.password} placeholder="Leave blank for teacher123" onChange={e => setTeacherForm(p => ({ ...p, password: e.target.value }))} /></Field>
-        <Field label="Subject"><Inp value={teacherForm.subject} placeholder="e.g. Mathematics" onChange={e => setTeacherForm(p => ({ ...p, subject: e.target.value }))} /></Field>
-        <Field label="Phone"><Inp value={teacherForm.phone} placeholder="+250 788 000 000" onChange={e => setTeacherForm(p => ({ ...p, phone: e.target.value }))} /></Field>
+      
+      {/* Report Incident Modal */}
+      <Modal open={incidentModal} onClose={() => setIncidentModal(false)} title="Report New Incident" width={560}>
+        <Field label="Student" required>
+          <Sel value={incidentForm.studentId} onChange={e => setIncidentForm(p => ({ ...p, studentId: e.target.value }))}>
+            <option value="">Select student…</option>
+            {students.map(s => <option key={s._id} value={s._id}>{s.fullName} ({s.classId?.grade || ''} {s.classId?.className || ''})</option>)}
+          </Sel>
+        </Field>
+        <Field label="Offense Category" required>
+          <Sel value={incidentForm.category} onChange={e => setIncidentForm(p => ({ ...p, category: e.target.value, severity: e.target.value.includes('major') ? 'major' : e.target.value.includes('moderate') ? 'moderate' : 'minor' }))}>
+            <option value="">Select category…</option>
+            <optgroup label="Minor Offenses">
+              {offenseCategories.minor.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+            </optgroup>
+            <optgroup label="Moderate Offenses">
+              {offenseCategories.moderate.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+            </optgroup>
+            <optgroup label="Major Offenses">
+              {offenseCategories.major.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+            </optgroup>
+          </Sel>
+        </Field>
+        <Field label="Description" required>
+          <Txt value={incidentForm.description} rows={4} placeholder="Detailed description of the incident..." onChange={e => setIncidentForm(p => ({ ...p, description: e.target.value }))} />
+        </Field>
+        <Field label="Evidence (Optional)">
+          <Inp type="text" value={incidentForm.evidence} placeholder="Link to evidence or witness statements" onChange={e => setIncidentForm(p => ({ ...p, evidence: e.target.value }))} />
+        </Field>
         <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end', marginTop: 8 }}>
-          <Btn onClick={() => setTeacherModal(false)} color="#f0f0f0" textColor="#666">Cancel</Btn>
-          <Btn onClick={createTeacher} icon="fas fa-user-plus" color="#1a3a5c" disabled={saving}>{saving ? 'Creating…' : 'Create Teacher'}</Btn>
+          <Btn onClick={() => setIncidentModal(false)} color="#f0f0f0" textColor="#666">Cancel</Btn>
+          <Btn onClick={reportIncident} icon="fas fa-exclamation-triangle" color="#e74c3c" disabled={saving}>{saving ? 'Reporting…' : 'Report Incident'}</Btn>
         </div>
       </Modal>
 
-      <Modal open={classModal} onClose={() => setClassModal(false)} title="Create Class">
-        <Field label="Class Name" required><Inp value={classForm.className} placeholder="e.g. A, B, Science" onChange={e => setClassForm(p => ({ ...p, className: e.target.value }))} /></Field>
-        <Field label="Grade" required>
-          <Sel value={classForm.grade} onChange={e => setClassForm(p => ({ ...p, grade: e.target.value }))}>
-            {['S1', 'S2', 'S3', 'S4', 'S5', 'S6'].map(g => <option key={g} value={g}>{g}</option>)}
+      {/* Permission Request Modal (for admin to request from super admin) */}
+      <Modal open={permissionModal} onClose={() => setPermissionModal(false)} title="Request Permission" width={500}>
+        <Field label="Request Type" required>
+          <Sel value={permissionForm.type} onChange={e => setPermissionForm(p => ({ ...p, type: e.target.value }))}>
+            <option value="medical">🏥 Medical Appointment</option>
+            <option value="emergency">🚨 Family Emergency</option>
+            <option value="travel">✈️ Travel Permission</option>
+            <option value="bereavement">💔 Bereavement</option>
+            <option value="other">📋 Other</option>
           </Sel>
         </Field>
-        <Field label="Academic Year" required><Inp value={classForm.academicYear} placeholder="2026" onChange={e => setClassForm(p => ({ ...p, academicYear: e.target.value }))} /></Field>
-        <Field label="Assign Teacher">
-          <Sel value={classForm.teacherId} onChange={e => setClassForm(p => ({ ...p, teacherId: e.target.value }))}>
-            <option value="">— Optional —</option>
-            {teachers.map(t => <option key={t._id} value={t._id}>{t.fullName} ({t.subject || 'General'})</option>)}
-          </Sel>
+        <Field label="Reason" required>
+          <Txt value={permissionForm.reason} rows={3} placeholder="Explain why you need permission..." onChange={e => setPermissionForm(p => ({ ...p, reason: e.target.value }))} />
         </Field>
-        <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end', marginTop: 8 }}>
-          <Btn onClick={() => setClassModal(false)} color="#f0f0f0" textColor="#666">Cancel</Btn>
-          <Btn onClick={createClass} icon="fas fa-school" color="#1a3a5c" disabled={saving}>{saving ? 'Creating…' : 'Create Class'}</Btn>
-        </div>
-      </Modal>
-
-      <Modal open={studentModal} onClose={() => setStudentModal(false)} title="Add Student">
-        <Field label="Full Name" required><Inp value={studentForm.fullName} placeholder="Student full name" onChange={e => setStudentForm(p => ({ ...p, fullName: e.target.value }))} /></Field>
-        <Field label="Email"><Inp type="email" value={studentForm.email} placeholder="student@essa.rw" onChange={e => setStudentForm(p => ({ ...p, email: e.target.value }))} /></Field>
-        <Field label="Class">
-          <Sel value={studentForm.classId} onChange={e => setStudentForm(p => ({ ...p, classId: e.target.value }))}>
-            <option value="">— Select Class —</option>
-            {classes.map(c => <option key={c._id} value={c._id}>{c.grade} {c.className}</option>)}
-          </Sel>
-        </Field>
-        <Field label="Parent Name"><Inp value={studentForm.parentName} placeholder="Parent/Guardian name" onChange={e => setStudentForm(p => ({ ...p, parentName: e.target.value }))} /></Field>
-        <Field label="Parent Phone"><Inp value={studentForm.parentPhone} placeholder="+250 788 000 000" onChange={e => setStudentForm(p => ({ ...p, parentPhone: e.target.value }))} /></Field>
-        <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end', marginTop: 8 }}>
-          <Btn onClick={() => setStudentModal(false)} color="#f0f0f0" textColor="#666">Cancel</Btn>
-          <Btn onClick={createStudent} icon="fas fa-user-graduate" color="#1a3a5c" disabled={saving}>{saving ? 'Saving…' : 'Add Student'}</Btn>
-        </div>
-      </Modal>
-
-      <Modal open={newsModal} onClose={() => setNewsModal(false)} title="Post News / Event" width={560}>
-        <Field label="Title" required><Inp value={newsForm.title} placeholder="News title" onChange={e => setNewsForm(p => ({ ...p, title: e.target.value }))} /></Field>
-        <Field label="Summary" required><Txt value={newsForm.summary} placeholder="Short summary…" rows={3} onChange={e => setNewsForm(p => ({ ...p, summary: e.target.value }))} /></Field>
-        <Field label="Full Content"><Txt value={newsForm.content} placeholder="Full content (optional)" rows={4} onChange={e => setNewsForm(p => ({ ...p, content: e.target.value }))} /></Field>
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-          <Field label="Category">
-            <Sel value={newsForm.category} onChange={e => setNewsForm(p => ({ ...p, category: e.target.value }))}>
-              <option value="news">📰 News</option><option value="event">🎉 Event</option><option value="announcement">📢 Announcement</option><option value="achievement">🏆 Achievement</option>
+          <Field label="From Date" required><Inp type="date" value={permissionForm.fromDate} onChange={e => setPermissionForm(p => ({ ...p, fromDate: e.target.value }))} /></Field>
+          <Field label="To Date" required><Inp type="date" value={permissionForm.toDate} onChange={e => setPermissionForm(p => ({ ...p, toDate: e.target.value }))} /></Field>
+        </div>
+        <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end', marginTop: 8 }}>
+          <Btn onClick={() => setPermissionModal(false)} color="#f0f0f0" textColor="#666">Cancel</Btn>
+          <Btn onClick={requestPermission} icon="fas fa-paper-plane" color="#3498db" disabled={saving}>{saving ? 'Submitting…' : 'Submit Request'}</Btn>
+        </div>
+      </Modal>
+
+      {/* Post Announcement Modal */}
+      <Modal open={announcementModal} onClose={() => setAnnouncementModal(false)} title="Post Announcement" width={540}>
+        <Field label="Title" required><Inp value={announcementForm.title} placeholder="Announcement title" onChange={e => setAnnouncementForm(p => ({ ...p, title: e.target.value }))} /></Field>
+        <Field label="Content" required><Txt value={announcementForm.content} rows={4} placeholder="Write your announcement here..." onChange={e => setAnnouncementForm(p => ({ ...p, content: e.target.value }))} /></Field>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+          <Field label="Audience">
+            <Sel value={announcementForm.audience} onChange={e => setAnnouncementForm(p => ({ ...p, audience: e.target.value }))}>
+              <option value="all">📢 All Users</option>
+              <option value="students">🎓 Students</option>
+              <option value="teachers">👨‍🏫 Teachers</option>
+              <option value="parents">👪 Parents</option>
             </Sel>
           </Field>
-          <Field label="Tags"><Inp value={newsForm.tags} placeholder="tag1, tag2" onChange={e => setNewsForm(p => ({ ...p, tags: e.target.value }))} /></Field>
+          <Field label="Priority">
+            <Sel value={announcementForm.priority} onChange={e => setAnnouncementForm(p => ({ ...p, priority: e.target.value }))}>
+              <option value="normal">ℹ️ Normal</option>
+              <option value="high">⚠️ High</option>
+              <option value="urgent">🔴 Urgent</option>
+            </Sel>
+          </Field>
         </div>
-        <Field label="Image (optional)"><input type="file" accept="image/*" onChange={e => setNewsImageFile(e.target.files[0])} style={{ fontSize: 13, padding: '8px 0' }} /></Field>
         <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end', marginTop: 8 }}>
-          <Btn onClick={() => setNewsModal(false)} color="#f0f0f0" textColor="#666">Cancel</Btn>
-          <Btn onClick={postNews} icon="fas fa-paper-plane" color="#1a3a5c" disabled={saving}>{saving ? 'Publishing…' : 'Publish'}</Btn>
+          <Btn onClick={() => setAnnouncementModal(false)} color="#f0f0f0" textColor="#666">Cancel</Btn>
+          <Btn onClick={postAnnouncement} icon="fas fa-bullhorn" color="#1a3a5c" disabled={saving}>{saving ? 'Posting…' : 'Post Announcement'}</Btn>
         </div>
       </Modal>
 
-      <Modal open={galleryModal} onClose={() => setGalleryModal(false)} title="Add Gallery Image">
-        <Field label="Title" required><Inp value={galleryForm.title} placeholder="Image title" onChange={e => setGalleryForm(p => ({ ...p, title: e.target.value }))} /></Field>
-        <Field label="Category">
-          <Sel value={galleryForm.category} onChange={e => setGalleryForm(p => ({ ...p, category: e.target.value }))}>
-            <option value="events">🎪 Events</option><option value="academic">📚 Academic</option><option value="sports">⚽ Sports</option><option value="cultural">🎭 Cultural</option>
+      {/* Mass Message Modal */}
+      <Modal open={massMessageModal} onClose={() => setMassMessageModal(false)} title="Mass Message" width={540}>
+        <Field label="Subject" required><Inp value={messageForm.subject} placeholder="Message subject" onChange={e => setMessageForm(p => ({ ...p, subject: e.target.value }))} /></Field>
+        <Field label="Audience" required>
+          <Sel value={messageForm.audience} onChange={e => setMessageForm(p => ({ ...p, audience: e.target.value }))}>
+            <option value="all_parents">👪 All Parents</option>
+            <option value="all_teachers">👨‍🏫 All Teachers</option>
+            <option value="all_students">🎓 All Students</option>
           </Sel>
         </Field>
-        <Field label="Description"><Txt value={galleryForm.description} placeholder="Optional description" rows={3} onChange={e => setGalleryForm(p => ({ ...p, description: e.target.value }))} /></Field>
-        <Field label="Image" required><input type="file" accept="image/*" onChange={e => setGalleryImageFile(e.target.files[0])} style={{ fontSize: 13, padding: '8px 0' }} /></Field>
+        <Field label="Message" required>
+          <Txt value={messageForm.content} rows={5} placeholder="Type your message here..." onChange={e => setMessageForm(p => ({ ...p, content: e.target.value }))} />
+        </Field>
         <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end', marginTop: 8 }}>
-          <Btn onClick={() => setGalleryModal(false)} color="#f0f0f0" textColor="#666">Cancel</Btn>
-          <Btn onClick={addGalleryImage} icon="fas fa-image" color="#1a3a5c" disabled={saving}>{saving ? 'Uploading…' : 'Add Image'}</Btn>
+          <Btn onClick={() => setMassMessageModal(false)} color="#f0f0f0" textColor="#666">Cancel</Btn>
+          <Btn onClick={sendMassMessage} icon="fas fa-envelope" color="#3498db" disabled={saving}>{saving ? 'Sending…' : 'Send Message'}</Btn>
         </div>
       </Modal>
     </div>
   );
 };
 
-export default AcademicAdminDashboard;
+export default DisciplineAdminDashboard;
