@@ -1582,7 +1582,6 @@ app.put('/api/permissions/:id', authMiddleware, async (req, res) => {
 
 // ==================== PERMISSION SLIP GENERATION ====================
 
-// Generate and return permission slip HTML
 app.get('/api/permissions/:id/slip', authMiddleware, async (req, res) => {
   try {
     const permission = await Permission.findById(req.params.id);
@@ -1595,9 +1594,11 @@ app.get('/api/permissions/:id/slip', authMiddleware, async (req, res) => {
       return res.status(400).json({ message: 'Permission slip can only be generated for approved requests' });
     }
     
-    // Get user details if needed
-    const user = await User.findById(permission.requesterId);
-    
+    // Increment slip generation counter
+    permission.slipGeneratedCount = (permission.slipGeneratedCount || 0) + 1;
+    permission.lastSlipGeneratedAt = new Date();
+    await permission.save();
+        
     const slipHtml = `
       <!DOCTYPE html>
       <html>

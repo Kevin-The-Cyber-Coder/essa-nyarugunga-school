@@ -415,28 +415,59 @@ const DisciplineAdminDashboard = () => {
   };
   
   const processPermission = async (permission, status) => {
-    const isReject = status === 'rejected';
-    const result = await Swal.fire({
-      title: `${isReject ? 'Reject' : 'Approve'} Permission Request`,
-      text: `${permission.requesterName} - ${permission.reason || permission.type}`,
-      icon: 'question',
-      showCancelButton: true,
-      confirmButtonText: isReject ? '❌ Reject' : '✅ Approve',
-      confirmButtonColor: isReject ? '#e74c3c' : '#27ae60',
-      ...(isReject && { input: 'textarea', inputLabel: 'Reason for rejection' })
-    });
-    if (!result.isConfirmed) return;
-    
-    try {
-      await api(`/permissions/${permission._id}`, {
-        method: 'PUT',
-        body: JSON.stringify({ status, rejectionReason: result.value || '' })
-      });
-      Swal.fire(`${isReject ? 'Rejected' : 'Approved'}!`, '', 'success');
-      fetchPermissions();
-    } catch (e) { Swal.fire('Error', e.message, 'error'); }
-  };
+  const isReject = status === 'rejected';
+  const result = await Swal.fire({
+    title: `${isReject ? 'Reject' : 'Approve'} Permission Request`,
+    text: `${permission.requesterName} - ${permission.reason || permission.type}`,
+    icon: 'question',
+    showCancelButton: true,
+    confirmButtonText: isReject ? '❌ Reject' : '✅ Approve',
+    confirmButtonColor: isReject ? '#e74c3c' : '#27ae60',
+    ...(isReject && { input: 'textarea', inputLabel: 'Reason for rejection' })
+  });
+  if (!result.isConfirmed) return;
   
+  try {
+    await api(`/permissions/${permission._id}`, {
+      method: 'PUT',
+      body: JSON.stringify({ status, rejectionReason: result.value || '' })
+    });
+    Swal.fire({
+      title: `${isReject ? 'Rejected' : 'Approved'}!`,
+      text: isReject ? 'The request has been rejected.' : 'Permission request approved.',
+      icon: 'success',
+      showConfirmButton: true,
+      confirmButtonText: 'OK'
+    });
+    
+    // If approved, ask if user wants to print permission slip
+    if (!isReject) {
+      const printResult = await Swal.fire({
+        title: 'Print Permission Slip?',
+        text: 'Would you like to generate and print the permission slip?',
+        icon: 'question',
+        showCancelButton: true,
+        confirmButtonText: '🖨️ Yes, Print',
+        cancelButtonText: 'Later',
+        confirmButtonColor: '#1a3a5c'
+      });
+      
+      if (printResult.isConfirmed) {
+        // Open permission slip in new window
+        const slipWindow = window.open(`${API_URL}/permissions/${permission._id}/slip`, '_blank');
+        if (slipWindow) {
+          slipWindow.focus();
+        } else {
+          Swal.fire('Info', 'Please allow pop-ups to view the permission slip.', 'info');
+        }
+      }
+    }
+    
+    fetchPermissions();
+  } catch (e) { 
+    Swal.fire('Error', e.message, 'error'); 
+  }
+};
   const postAnnouncement = async () => {
     if (!announcementForm.title || !announcementForm.content) {
       Swal.fire('Missing Fields', 'Title and content required', 'warning');
@@ -677,23 +708,60 @@ const DisciplineAdminDashboard = () => {
           )}
 
           {/* ══ PERMISSION REQUESTS ══ */}
-          {activeTab === 'permissions' && (
-            <div>
-              <div style={{ marginBottom: 18 }}><h2 style={{ margin: 0, fontSize: 19, color: '#1a3a5c', fontFamily: 'Georgia, serif' }}>Permission Requests</h2><p style={{ margin: '3px 0 0', fontSize: 12, color: '#888' }}>{pendingPermissions} pending · {permissions.filter(p => p.status === 'approved').length} approved · {permissions.filter(p => p.status === 'rejected').length} rejected</p></div>
-              <div style={{ background: 'white', borderRadius: 14, boxShadow: '0 2px 10px rgba(0,0,0,.05)' }}>
-                <Table cols={['Requester', 'Type', 'Reason', 'Date Range', 'Status', 'Actions']} emptyMsg="No permission requests"
-                  rows={permissions.map(p => (
-                    <><TD><div style={{ fontWeight: 600, fontSize: 13 }}>{p.requesterName}</div><div style={{ fontSize: 11, color: '#aaa' }}>{roleBadge(p.requesterRole).label}</div></TD>
-                      <TD><Badge text={p.type} color="#3498db" bg="#e3f2fd" /></TD>
-                      <TD style={{ fontSize: 12, maxWidth: 200 }}>{p.reason || '—'}</TD>
-                      <TD style={{ fontSize: 12 }}>{fmt(p.fromDate)} - {fmt(p.toDate)}</TD>
-                      <TD><Badge text={p.status} color={p.status === 'pending' ? '#f39c12' : p.status === 'approved' ? '#27ae60' : '#e74c3c'} bg={p.status === 'pending' ? '#fff3e0' : p.status === 'approved' ? '#e8f5e9' : '#fdecea'} /></TD>
-                      <TD>{p.status === 'pending' && <div style={{ display: 'flex', gap: 6 }}><Btn small onClick={() => processPermission(p, 'approved')} color="#27ae60">Approve</Btn><Btn small onClick={() => processPermission(p, 'rejected')} danger>Reject</Btn></div>}</TD></>
-                  ))}
-                />
+{activeTab === 'permissions' && (
+  <div>
+    <div style={{ marginBottom: 18 }}>
+      <h2 style={{ margin: 0, fontSize: 19, color: '#1a3a5c', fontFamily: 'Georgia, serif' }}>Permission Requests</h2>
+      <p style={{ margin: '3px 0 0', fontSize: 12, color: '#888' }}>
+        {pendingPermissions} pending · {permissions.filter(p => p.status === 'approved').length} approved · {permissions.filter(p => p.status === 'rejected').length} rejected
+      </p>
+    </div>
+    <div style={{ background: 'white', borderRadius: 14, boxShadow: '0 2px 10px rgba(0,0,0,.05)' }}>
+      <Table 
+        cols={['Requester', 'Type', 'Reason', 'Date Range', 'Status', 'Actions']} 
+        emptyMsg="No permission requests"
+        rows={permissions.map(p => (
+          <>
+            <TD>
+              <div style={{ fontWeight: 600, fontSize: 13 }}>{p.requesterName}</div>
+              <div style={{ fontSize: 11, color: '#aaa' }}>{roleBadge(p.requesterRole).label}</div>
+            </TD>
+            <TD><Badge text={p.type} color="#3498db" bg="#e3f2fd" /></TD>
+            <TD style={{ fontSize: 12, maxWidth: 200 }}>{p.reason || '—'}</TD>
+            <TD style={{ fontSize: 12 }}>{fmt(p.fromDate)} - {fmt(p.toDate)}</TD>
+            <TD>
+              <Badge 
+                text={p.status} 
+                color={p.status === 'pending' ? '#f39c12' : p.status === 'approved' ? '#27ae60' : '#e74c3c'} 
+                bg={p.status === 'pending' ? '#fff3e0' : p.status === 'approved' ? '#e8f5e9' : '#fdecea'} 
+              />
+            </TD>
+            <TD>
+              <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                {p.status === 'pending' && (
+                  <>
+                    <Btn small onClick={() => processPermission(p, 'approved')} color="#27ae60">Approve</Btn>
+                    <Btn small onClick={() => processPermission(p, 'rejected')} danger>Reject</Btn>
+                  </>
+                )}
+                {p.status === 'approved' && (
+                  <Btn 
+                    small 
+                    icon="fas fa-print" 
+                    color="#3498db" 
+                    onClick={() => window.open(`${API_URL}/permissions/${p._id}/slip`, '_blank')}
+                  >
+                    Print Slip
+                  </Btn>
+                )}
               </div>
-            </div>
-          )}
+            </TD>
+          </>
+        ))}
+      />
+    </div>
+  </div>
+)}
 
           {/* ══ STUDENTS VIEWER ══ */}
           {activeTab === 'students' && (
