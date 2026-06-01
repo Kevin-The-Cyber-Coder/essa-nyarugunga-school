@@ -136,7 +136,7 @@ const AboutPage = () => {
       <Navbar />
       
       {/* Hero Section - Centered */}
-      <section className="about-hero" style={{ backgroundImage: `url(${heroBg})` }``}>
+      <section className="about-hero" style={{ backgroundImage: `url(${heroBg})` }}>
        
         <div className="about-hero-overlay"></div>
         <div className="container about-hero-content">
