@@ -357,7 +357,7 @@ const AboutPage = () => {
             <h2>Ready to Join ESSA Nyarugunga?</h2>
             <p>Take the first step towards a bright future. Applications are now open for the 2026-2027 academic year.</p>
             <div className="cta-buttons">
-              <Link to="/admissions" className="btn btn-primary"><i className="fas fa-download"></i> Download Application</Link>
+              <Link to="/admissions" className="btn btn-primary"><i className="fas fa-user-graduate"></i> Apply Now</Link>
               <Link to="/contact" className="btn btn-secondary"><i className="fas fa-calendar-alt"></i> Schedule a Visit</Link>
             </div>
           </div>
