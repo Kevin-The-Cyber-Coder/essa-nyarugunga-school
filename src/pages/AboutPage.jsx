@@ -137,6 +137,14 @@ const AboutPage = () => {
       
       {/* Hero Section - Centered */}
       <section className="about-hero" style={{ backgroundImage: `url(${heroBg})` }}>
+        <style>
+          hero{
+           background: linear-gradient(
+  135deg,
+  hsla(220, 60%, 18%, 0.80) 0%,
+  hsla(45, 90%, 70%, 0.45) 100%
+);}
+        </style>
         <div className="about-hero-overlay"></div>
         <div className="container about-hero-content">
           <div className="hero-badge">
