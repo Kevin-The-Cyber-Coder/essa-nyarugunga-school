@@ -72,9 +72,9 @@ const AboutPage = () => {
 
   const stats = [
     { number: '2006', label: 'Year Founded', icon: 'fas fa-calendar-alt' },
-    { number: '1000+', label: 'Current Students', icon: 'fas fa-user-graduate' },
-    { number: '40+', label: 'Qualified Teachers', icon: 'fas fa-chalkboard-user' },
-    { number: '95%', label: 'Pass Rate', icon: 'fas fa-chart-line' }
+    { number: '800+', label: 'Current Students', icon: 'fas fa-user-graduate' },
+    { number: '20+', label: 'Qualified Teachers', icon: 'fas fa-chalkboard-user' },
+    { number: '8  5%', label: 'Pass Rate', icon: 'fas fa-chart-line' }
   ];
 
   const facilities = [
