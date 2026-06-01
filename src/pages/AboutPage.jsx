@@ -150,21 +150,7 @@ const AboutPage = () => {
             <Link to="/admissions" className="btn btn-secondary"><i className="fas fa-user-graduate"></i> Apply Now</Link>
           </div>
         </div>
-        <style>
-          {
-            `.hero-overlay {
-          position: absolute;
-          top: 0;
-          left: 0;
-          width: 100%;
-          height: 100%;
-    background: linear-gradient(
-  135deg,
-  hsla(220, 60%, 18%, 0.80) 0%,
-  hsla(45, 90%, 70%, 0.45) 100%
-);`
-          }
-        </style>
+        
       </section>
 
       {/* Stats Bar Section */}
