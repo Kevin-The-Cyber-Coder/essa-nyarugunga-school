@@ -745,7 +745,7 @@ const HomePage = () => {
         .filter-btn {
           padding: 8px 20px;
           border: 1px solid #1e3c72;
-          background: transparent;
+          
           border-radius: 30px;
           cursor: pointer;
           transition: 0.3s;
